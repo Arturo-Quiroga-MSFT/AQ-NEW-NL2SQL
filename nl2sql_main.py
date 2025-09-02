@@ -42,6 +42,8 @@ load_dotenv()
 API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+# Allow overriding Azure OpenAI REST api-version via env; default to latest preview suited for GPT-5 Chat Completions
+API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
 
 # Note on o-series/gpt-5 models: According to Azure documentation, reasoning models (o-series and gpt-5)
 # do NOT support temperature/top_p/presence_penalty/frequency_penalty with Chat Completions.
@@ -68,7 +70,7 @@ def _make_llm():
         openai_api_key=API_KEY,
         azure_endpoint=ENDPOINT,
         deployment_name=DEPLOYMENT_NAME,
-        api_version="2024-12-01-preview",
+        api_version=API_VERSION,
     )
 
 
@@ -155,7 +157,7 @@ def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_token
     """
     import requests  # lazy import
 
-    url = f"{ENDPOINT.rstrip('/')}/openai/deployments/{DEPLOYMENT_NAME}/chat/completions?api-version=2024-12-01-preview"
+    url = f"{ENDPOINT.rstrip('/')}/openai/deployments/{DEPLOYMENT_NAME}/chat/completions?api-version={API_VERSION}"
     payload: Dict[str, Any] = {"messages": messages}
     if max_completion_tokens is not None:
         payload["max_completion_tokens"] = max_completion_tokens

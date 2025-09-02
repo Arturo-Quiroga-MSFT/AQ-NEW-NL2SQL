@@ -176,11 +176,12 @@ DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")  # Specific model de
 # - Uses the latest API version for optimal feature support
 # - Configured for chat completion tasks (not embedding or completion)
 # - Supports both synchronous and asynchronous operation patterns
+API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
 llm = AzureChatOpenAI(
     openai_api_key=API_KEY,           # Authenticate with Azure OpenAI service
     azure_endpoint=ENDPOINT,          # Target the correct Azure OpenAI instance
     deployment_name=DEPLOYMENT_NAME,  # Use the specified model deployment
-    api_version="2024-12-01-preview"  # Latest API version for enhanced capabilities
+    api_version=API_VERSION           # API version controlled via env var
 )
 
 
