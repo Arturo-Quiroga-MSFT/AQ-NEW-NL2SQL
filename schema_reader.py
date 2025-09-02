@@ -10,7 +10,14 @@ import time
 from pathlib import Path
 from typing import Dict, Any
 
-import pyodbc
+try:
+	import pyodbc  # type: ignore
+	_PYODBC_AVAILABLE = True
+	_PYODBC_IMPORT_ERROR = None
+except Exception as _e:  # pragma: no cover
+	pyodbc = None  # type: ignore
+	_PYODBC_AVAILABLE = False
+	_PYODBC_IMPORT_ERROR = _e
 from dotenv import load_dotenv
 
 # Load env for DB connectivity
@@ -37,8 +44,13 @@ CACHE_FILE = DB_SETUP_DIR / "schema_cache.json"
 
 def _fetch_live_schema() -> Dict[str, Any]:
 	"""Query the database for tables, columns, and relationships."""
+	if not _PYODBC_AVAILABLE:
+		raise RuntimeError(
+			f"pyodbc is not available (import error: {_PYODBC_IMPORT_ERROR}). "
+			"Install system ODBC Driver 18 and the 'pyodbc' package to enable live schema fetch."
+		)
 	data: Dict[str, Any] = {"tables": {}, "relationships": []}
-	with pyodbc.connect(CONN_STR) as conn:
+	with pyodbc.connect(CONN_STR) as conn:  # type: ignore
 		cur = conn.cursor()
 		# Tables (exclude system schemas)
 		cur.execute(
