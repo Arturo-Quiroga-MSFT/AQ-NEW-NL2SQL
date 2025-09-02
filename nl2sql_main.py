@@ -159,24 +159,60 @@ def _load_pricing_config() -> Dict[str, Dict[str, float]]:
     return {}
 
 
-def _get_pricing_for_deployment(dep_name: Optional[str]) -> Tuple[Optional[float], Optional[float], str]:
-    """Resolve pricing (per 1K tokens) for input/output based on env or optional JSON.
+def _get_target_currency() -> str:
+    """Return desired currency code (USD or CAD). Defaults to USD."""
+    cur = (os.getenv("AZURE_OPENAI_PRICE_CURRENCY", "USD") or "USD").upper()
+    if cur not in ("USD", "CAD"):
+        cur = "USD"
+    return cur
+
+
+def _convert_currency(amount: float, from_currency: str, to_currency: str) -> Optional[float]:
+    """Convert between USD and CAD using env-provided rates when available.
+
+    Supported env vars:
+    - AZURE_OPENAI_PRICE_USD_TO_CAD
+    - AZURE_OPENAI_PRICE_CAD_TO_USD
+    Returns None if conversion isn't possible.
+    """
+    if from_currency == to_currency:
+        return amount
+    if from_currency == "USD" and to_currency == "CAD":
+        rate = os.getenv("AZURE_OPENAI_PRICE_USD_TO_CAD")
+        if rate:
+            try:
+                return amount * float(rate)
+            except ValueError:
+                return None
+    if from_currency == "CAD" and to_currency == "USD":
+        rate = os.getenv("AZURE_OPENAI_PRICE_CAD_TO_USD")
+        if rate:
+            try:
+                return amount * float(rate)
+            except ValueError:
+                return None
+    return None
+
+
+def _get_pricing_for_deployment(dep_name: Optional[str]) -> Tuple[Optional[float], Optional[float], str, str]:
+    """Resolve pricing (per 1K tokens) for input/output based on env or optional JSON with currency support.
 
     Priority order:
     1) AZURE_OPENAI_PRICE_<DEPLOYMENT>_INPUT_PER_1K and ..._OUTPUT_PER_1K
     2) AZURE_OPENAI_PRICE_INPUT_PER_1K and AZURE_OPENAI_PRICE_OUTPUT_PER_1K (global fallback)
-    3) azure_openai_pricing.json mapping by deployment name (lowercased keys)
+    3) azure_openai_pricing.json mapping by deployment name (lowercased keys), supporting either flat prices or per-currency maps
 
-    Returns (input_price_per_1k, output_price_per_1k, source_string)
+    Returns (input_price_per_1k, output_price_per_1k, source_string, currency_code)
     """
     dep = dep_name or ""
     dep_key = _normalize_dep_to_env_key(dep)
+    target_cur = _get_target_currency()
     # 1) Deployment-specific env vars
     in_env = os.getenv(f"AZURE_OPENAI_PRICE_{dep_key}_INPUT_PER_1K")
     out_env = os.getenv(f"AZURE_OPENAI_PRICE_{dep_key}_OUTPUT_PER_1K")
     if in_env and out_env:
         try:
-            return float(in_env), float(out_env), f"env:{dep_key}"
+            return float(in_env), float(out_env), f"env:{dep_key}", target_cur
         except ValueError:
             pass
     # 2) Global env fallback
@@ -184,7 +220,7 @@ def _get_pricing_for_deployment(dep_name: Optional[str]) -> Tuple[Optional[float
     out_glob = os.getenv("AZURE_OPENAI_PRICE_OUTPUT_PER_1K")
     if in_glob and out_glob:
         try:
-            return float(in_glob), float(out_glob), "env:global"
+            return float(in_glob), float(out_glob), "env:global", target_cur
         except ValueError:
             pass
     # 3) Optional JSON file mapping
@@ -192,11 +228,45 @@ def _get_pricing_for_deployment(dep_name: Optional[str]) -> Tuple[Optional[float
     if pricing_map:
         entry = pricing_map.get(dep.lower()) or pricing_map.get(dep)
         if entry and isinstance(entry, dict):
-            try:
-                return float(entry.get("input_per_1k")), float(entry.get("output_per_1k")), "file:azure_openai_pricing.json"
-            except Exception:
-                pass
-    return None, None, "unset"
+            # If entry is flat (legacy): assume USD unless otherwise specified
+            if "input_per_1k" in entry and "output_per_1k" in entry:
+                try:
+                    in_usd = float(entry.get("input_per_1k"))
+                    out_usd = float(entry.get("output_per_1k"))
+                    if target_cur == "USD":
+                        return in_usd, out_usd, "file:azure_openai_pricing.json", "USD"
+                    # Try convert to CAD
+                    in_cad = _convert_currency(in_usd, "USD", target_cur)
+                    out_cad = _convert_currency(out_usd, "USD", target_cur)
+                    if in_cad is not None and out_cad is not None:
+                        return in_cad, out_cad, "file:azure_openai_pricing.json (converted)", target_cur
+                    # No conversion rate; fall back to USD values with note
+                    return in_usd, out_usd, "file:azure_openai_pricing.json (USD; no conversion)", "USD"
+                except Exception:
+                    pass
+            # New per-currency nested format { "USD": {...}, "CAD": {...} }
+            cur_block = entry.get(target_cur)
+            if isinstance(cur_block, dict) and "input_per_1k" in cur_block and "output_per_1k" in cur_block:
+                try:
+                    return float(cur_block["input_per_1k"]), float(cur_block["output_per_1k"]), "file:azure_openai_pricing.json", target_cur
+                except Exception:
+                    pass
+            # If target currency missing, try USD and convert
+            usd_block = entry.get("USD")
+            if isinstance(usd_block, dict) and "input_per_1k" in usd_block and "output_per_1k" in usd_block:
+                try:
+                    in_usd = float(usd_block["input_per_1k"])
+                    out_usd = float(usd_block["output_per_1k"])
+                    if target_cur == "USD":
+                        return in_usd, out_usd, "file:azure_openai_pricing.json", "USD"
+                    in_conv = _convert_currency(in_usd, "USD", target_cur)
+                    out_conv = _convert_currency(out_usd, "USD", target_cur)
+                    if in_conv is not None and out_conv is not None:
+                        return in_conv, out_conv, "file:azure_openai_pricing.json (converted)", target_cur
+                    return in_usd, out_usd, "file:azure_openai_pricing.json (USD; no conversion)", "USD"
+                except Exception:
+                    pass
+    return None, None, "unset", _get_target_currency()
 
 # ---------- Prompt setup (diagram: Intent → Reasoning → SQL) ----------
 
@@ -525,7 +595,7 @@ def main(argv=None) -> int:
         output_lines.append(note + "\n")
 
         # Token usage & cost
-        in_price_1k, out_price_1k, price_src = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+        in_price_1k, out_price_1k, price_src, currency_code = _get_pricing_for_deployment(DEPLOYMENT_NAME)
         prompt_tokens = _TOKEN_USAGE["prompt"]
         completion_tokens = _TOKEN_USAGE["completion"]
         total_tokens = _TOKEN_USAGE["total"] or (prompt_tokens + completion_tokens)
@@ -538,14 +608,14 @@ def main(argv=None) -> int:
             print(f"Completion tokens: {completion_tokens}")
             print(f"Total tokens: {total_tokens}")
             print(
-                f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]"
+                f"Estimated cost ({currency_code}): {total_cost:.6f}  [input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={price_src}]"
             )
             output_lines.append(plain_banner("TOKEN USAGE & COST"))
             output_lines.append(f"Input tokens: {prompt_tokens}\n")
             output_lines.append(f"Completion tokens: {completion_tokens}\n")
             output_lines.append(f"Total tokens: {total_tokens}\n")
             output_lines.append(
-                f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]\n"
+                f"Estimated cost ({currency_code}): {total_cost:.6f}  [input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={price_src}]\n"
             )
         else:
             print(colored_banner("TOKEN USAGE", Colors.CYAN))
@@ -621,7 +691,7 @@ def main(argv=None) -> int:
     dur = time.time() - start
     dur_line = f"Run duration: {dur:.2f} seconds"
     # Token usage & cost calculation section
-    in_price_1k, out_price_1k, price_src = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    in_price_1k, out_price_1k, price_src, currency_code = _get_pricing_for_deployment(DEPLOYMENT_NAME)
     prompt_tokens = _TOKEN_USAGE["prompt"]
     completion_tokens = _TOKEN_USAGE["completion"]
     total_tokens = _TOKEN_USAGE["total"] or (prompt_tokens + completion_tokens)
@@ -634,13 +704,13 @@ def main(argv=None) -> int:
         print(f"Input tokens: {prompt_tokens}")
         print(f"Completion tokens: {completion_tokens}")
         print(f"Total tokens: {total_tokens}")
-        print(f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]")
+        print(f"Estimated cost ({currency_code}): {total_cost:.6f}  [input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={price_src}]")
         output_lines.append(plain_banner("TOKEN USAGE & COST"))
         output_lines.append(f"Input tokens: {prompt_tokens}\n")
         output_lines.append(f"Completion tokens: {completion_tokens}\n")
         output_lines.append(f"Total tokens: {total_tokens}\n")
         output_lines.append(
-            f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]\n"
+            f"Estimated cost ({currency_code}): {total_cost:.6f}  [input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={price_src}]\n"
         )
     else:
         # Pricing not set; still print tokens and guidance

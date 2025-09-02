@@ -1,0 +1,10 @@
+{
+  "gpt-5": {
+    "USD": { "input_per_1k": 0.00125, "output_per_1k": 0.01 },
+    "CAD": { "input_per_1k": 0.001728875, "output_per_1k": 0.013831 }
+  },
+  "gpt-4.1": {
+    "USD": { "input_per_1k": 0.00277, "output_per_1k": 0.01107 },
+    "CAD": { "input_per_1k": 0.003831187, "output_per_1k": 0.015310917 }
+  }
+}

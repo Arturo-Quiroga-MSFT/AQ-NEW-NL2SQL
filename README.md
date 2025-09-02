@@ -151,7 +151,7 @@ When generating or executing T-SQL from applications/drivers (ODBC/pyodbc), keep
 
 ## Token usage and cost reporting
 
-At the end of each run, the CLI prints token counts and, when pricing is configured, an estimated USD cost for the run. It includes:
+At the end of each run, the CLI prints token counts and, when pricing is configured, an estimated cost for the run (USD by default; CAD supported). It includes:
 
 - Input tokens (prompt)
 - Completion tokens (output)
@@ -190,6 +190,34 @@ Notes:
 
 - Always source the latest numbers from the official Azure OpenAI pricing page. Prices vary by Global/Data Zone/Regional deployments and may change over time.
 - If pricing isn’t configured, the script still prints token counts with a quick hint on how to enable cost calculation.
+
+### Currency selection (USD/CAD) and conversion
+
+You can choose the currency shown in cost estimates:
+
+- `AZURE_OPENAI_PRICE_CURRENCY` = `USD` (default) or `CAD`
+
+If your JSON is in USD but you want CAD output, optionally provide a conversion rate via env vars. If no rate is set, the script will fall back to USD values while labeling them clearly:
+
+- `AZURE_OPENAI_PRICE_USD_TO_CAD` (e.g., `1.36`)
+- `AZURE_OPENAI_PRICE_CAD_TO_USD` (e.g., `0.74`)
+
+Both env-based pricing and JSON pricing work with the chosen target currency. The JSON file also supports a nested per-currency format if you prefer to store values for multiple currencies:
+
+```json
+{
+  "gpt-5": {
+    "USD": { "input_per_1k": 0.00, "output_per_1k": 0.00 },
+    "CAD": { "input_per_1k": 0.00, "output_per_1k": 0.00 }
+  },
+  "gpt-4.1": {
+    "USD": { "input_per_1k": 0.00, "output_per_1k": 0.00 },
+    "CAD": { "input_per_1k": 0.00, "output_per_1k": 0.00 }
+  }
+}
+```
+
+In all cases, deployment-specific env vars take precedence over global env vars, which take precedence over JSON file entries.
 
 Reference: Azure OpenAI pricing
 
