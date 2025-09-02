@@ -30,3 +30,11 @@ COMPLICATED
 6) Rate structure mix: for each region, breakdown of loans by InterestRateType and ReferenceRate with counts and total principal.
 7) Collateral coverage ratio: for each loan, compute sum(collateral value) / principal; list loans with coverage ratio < 1.2 and maturity in the next 6 months.
 8) Rolling 12-month origination trend: monthly count and sum of new loans, with 3-month moving averages, by region.
+
+STRESS (ADVANCED SQL)
+----------------------
+1) For each region, show the top 3 companies by 12-month rolling average outstanding balance (as of the latest month), including each company’s share of its region’s total.
+2) For the last 6 months, by region and month, break down loans into 0–29, 30–59, 60–89, and 90+ days past due buckets, and show each bucket’s percentage of total, plus the month-over-month change.
+3) For the most recent quarter, compute the weighted average interest rate by LTV bucket (e.g., <50%, 50–70%, 70–80%, >80%) and collateral type, and present the LTV buckets as columns.
+4) For the latest month by region and product, show the mix of fixed vs. variable rate loans (counts and percentages) and the month-over-month percentage point change for each category.
+5) By region, list the top 10 companies by total outstanding balance among loans with LTV > 80%, show each company’s share of the regional total, and include an ‘Others’ row aggregating the remainder.
