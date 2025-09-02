@@ -39,7 +39,7 @@ import re
 import sys
 import time
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -89,6 +89,114 @@ def _make_llm():
 
 
 llm = _make_llm()
+
+# ---------- Token usage & pricing accumulation ----------
+
+# Accumulator for token usage across all calls in a run
+_TOKEN_USAGE = {"prompt": 0, "completion": 0, "total": 0}
+
+
+def _accumulate_usage(usage: Optional[Dict[str, Any]]) -> None:
+    """Accumulate token usage dicts of shape like {'prompt_tokens': int, 'completion_tokens': int, 'total_tokens': int}."""
+    if not usage:
+        return
+    _TOKEN_USAGE["prompt"] += int(usage.get("prompt_tokens", 0) or 0)
+    _TOKEN_USAGE["completion"] += int(usage.get("completion_tokens", 0) or 0)
+    _TOKEN_USAGE["total"] += int(usage.get("total_tokens", 0) or (_TOKEN_USAGE["prompt"] + _TOKEN_USAGE["completion"]))
+
+
+def _extract_usage_from_langchain_message(msg: Any) -> Optional[Dict[str, Any]]:
+    """Best-effort extraction of token usage from LangChain AIMessage/Message results."""
+    try:
+        # Newer langchain puts token usage in response_metadata.token_usage
+        meta = getattr(msg, "response_metadata", None) or {}
+        token_usage = meta.get("token_usage")
+        if token_usage and isinstance(token_usage, dict):
+            return {
+                "prompt_tokens": token_usage.get("prompt_tokens") or token_usage.get("input_tokens") or 0,
+                "completion_tokens": token_usage.get("completion_tokens") or token_usage.get("output_tokens") or 0,
+                "total_tokens": token_usage.get("total_tokens")
+                or (token_usage.get("prompt_tokens", 0) or 0)
+                + (token_usage.get("completion_tokens", 0) or 0),
+            }
+        # Some versions expose usage_metadata directly
+        um = getattr(msg, "usage_metadata", None)
+        if um and isinstance(um, dict):
+            return {
+                "prompt_tokens": um.get("input_tokens") or um.get("prompt_tokens") or 0,
+                "completion_tokens": um.get("output_tokens") or um.get("completion_tokens") or 0,
+                "total_tokens": um.get("total_tokens")
+                or (um.get("input_tokens", 0) or 0) + (um.get("output_tokens", 0) or 0),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def _normalize_dep_to_env_key(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", (name or "")).upper().strip("_")
+
+
+def _load_pricing_config() -> Dict[str, Dict[str, float]]:
+    """Load optional pricing map from azure_openai_pricing.json at repo root.
+
+    Expected JSON shape:
+    {
+      "<DEPLOYMENT_NAME_LOWER>": {"input_per_1k": 2.5, "output_per_1k": 10.0}
+    }
+    Returns empty dict if file not present or invalid.
+    """
+    try:
+        repo_root = os.path.dirname(__file__)
+        config_path = os.path.join(repo_root, "azure_openai_pricing.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+    except Exception:
+        pass
+    return {}
+
+
+def _get_pricing_for_deployment(dep_name: Optional[str]) -> Tuple[Optional[float], Optional[float], str]:
+    """Resolve pricing (per 1K tokens) for input/output based on env or optional JSON.
+
+    Priority order:
+    1) AZURE_OPENAI_PRICE_<DEPLOYMENT>_INPUT_PER_1K and ..._OUTPUT_PER_1K
+    2) AZURE_OPENAI_PRICE_INPUT_PER_1K and AZURE_OPENAI_PRICE_OUTPUT_PER_1K (global fallback)
+    3) azure_openai_pricing.json mapping by deployment name (lowercased keys)
+
+    Returns (input_price_per_1k, output_price_per_1k, source_string)
+    """
+    dep = dep_name or ""
+    dep_key = _normalize_dep_to_env_key(dep)
+    # 1) Deployment-specific env vars
+    in_env = os.getenv(f"AZURE_OPENAI_PRICE_{dep_key}_INPUT_PER_1K")
+    out_env = os.getenv(f"AZURE_OPENAI_PRICE_{dep_key}_OUTPUT_PER_1K")
+    if in_env and out_env:
+        try:
+            return float(in_env), float(out_env), f"env:{dep_key}"
+        except ValueError:
+            pass
+    # 2) Global env fallback
+    in_glob = os.getenv("AZURE_OPENAI_PRICE_INPUT_PER_1K")
+    out_glob = os.getenv("AZURE_OPENAI_PRICE_OUTPUT_PER_1K")
+    if in_glob and out_glob:
+        try:
+            return float(in_glob), float(out_glob), "env:global"
+        except ValueError:
+            pass
+    # 3) Optional JSON file mapping
+    pricing_map = _load_pricing_config()
+    if pricing_map:
+        entry = pricing_map.get(dep.lower()) or pricing_map.get(dep)
+        if entry and isinstance(entry, dict):
+            try:
+                return float(entry.get("input_per_1k")), float(entry.get("output_per_1k")), "file:azure_openai_pricing.json"
+            except Exception:
+                pass
+    return None, None, "unset"
 
 # ---------- Prompt setup (diagram: Intent → Reasoning → SQL) ----------
 
@@ -147,10 +255,13 @@ def parse_nl_query(user_input: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-        return _azure_chat_completions(messages, max_completion_tokens=8192)
+        content, usage = _azure_chat_completions(messages, max_completion_tokens=8192)
+        _accumulate_usage(usage)
+        return content
     # Non-reasoning path via LangChain
     chain = intent_prompt | llm  # type: ignore[arg-type]
     res = chain.invoke({"input": user_input})
+    _accumulate_usage(_extract_usage_from_langchain_message(res))
     return res.content
 
 
@@ -164,8 +275,11 @@ reasoning_prompt = ChatPromptTemplate.from_template(REASONING_PROMPT_TEXT)
 
 # ---------- Direct Azure Chat Completions for o-series / gpt-5 ----------
 
-def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_tokens: int | None = None) -> str:
-    """Direct Chat Completions call without temperature/top_p (reasoning-safe)."""
+def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_tokens: int | None = None) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """Direct Chat Completions call without temperature/top_p (reasoning-safe).
+
+    Returns (content, usage_dict)
+    """
     import requests  # lazy import
 
     url = f"{ENDPOINT.rstrip('/')}/openai/deployments/{DEPLOYMENT_NAME}/chat/completions?api-version={API_VERSION}"
@@ -176,7 +290,9 @@ def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_token
     resp = requests.post(url, headers=headers, json=payload, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    usage = data.get("usage")
+    return content, usage
 
 
 def _safe_import_schema_reader():
@@ -228,10 +344,13 @@ def generate_sql(intent_entities: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-        return _azure_chat_completions(messages, max_completion_tokens=8192)
+        content, usage = _azure_chat_completions(messages, max_completion_tokens=8192)
+        _accumulate_usage(usage)
+        return content
     # Non-reasoning path via LangChain
     chain = sql_prompt | llm  # type: ignore[arg-type]
     result = chain.invoke({"schema": schema, "intent_entities": intent_entities})
+    _accumulate_usage(_extract_usage_from_langchain_message(result))
     return result.content
 
 
@@ -245,9 +364,12 @@ def generate_reasoning(intent_entities: str) -> str:
             messages = [
                 {"role": "user", "content": prompt_text.strip()},
             ]
-            return _azure_chat_completions(messages, max_completion_tokens=8192)
+            content, usage = _azure_chat_completions(messages, max_completion_tokens=8192)
+            _accumulate_usage(usage)
+            return content
         chain = reasoning_prompt | llm  # type: ignore[arg-type]
         res = chain.invoke({"schema": schema, "intent_entities": intent_entities})
+        _accumulate_usage(_extract_usage_from_langchain_message(res))
         return res.content
     except Exception as e:
         return f"Reasoning unavailable: {e}"
@@ -402,6 +524,43 @@ def main(argv=None) -> int:
         output_lines.append(plain_banner("EXPLAIN-ONLY MODE"))
         output_lines.append(note + "\n")
 
+        # Token usage & cost
+        in_price_1k, out_price_1k, price_src = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+        prompt_tokens = _TOKEN_USAGE["prompt"]
+        completion_tokens = _TOKEN_USAGE["completion"]
+        total_tokens = _TOKEN_USAGE["total"] or (prompt_tokens + completion_tokens)
+        if in_price_1k is not None and out_price_1k is not None:
+            input_cost = (prompt_tokens / 1000.0) * in_price_1k
+            output_cost = (completion_tokens / 1000.0) * out_price_1k
+            total_cost = input_cost + output_cost
+            print(colored_banner("TOKEN USAGE & COST", Colors.CYAN))
+            print(f"Input tokens: {prompt_tokens}")
+            print(f"Completion tokens: {completion_tokens}")
+            print(f"Total tokens: {total_tokens}")
+            print(
+                f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]"
+            )
+            output_lines.append(plain_banner("TOKEN USAGE & COST"))
+            output_lines.append(f"Input tokens: {prompt_tokens}\n")
+            output_lines.append(f"Completion tokens: {completion_tokens}\n")
+            output_lines.append(f"Total tokens: {total_tokens}\n")
+            output_lines.append(
+                f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]\n"
+            )
+        else:
+            print(colored_banner("TOKEN USAGE", Colors.CYAN))
+            print(f"Input tokens: {prompt_tokens}")
+            print(f"Completion tokens: {completion_tokens}")
+            print(f"Total tokens: {total_tokens}")
+            print(
+                "[INFO] Pricing not configured. Set per-1K token prices via env or azure_openai_pricing.json."
+            )
+            output_lines.append(plain_banner("TOKEN USAGE"))
+            output_lines.append(f"Input tokens: {prompt_tokens}\n")
+            output_lines.append(f"Completion tokens: {completion_tokens}\n")
+            output_lines.append(f"Total tokens: {total_tokens}\n")
+            output_lines.append("[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n")
+
         # Duration
         dur = time.time() - start
         dur_line = f"Run duration: {dur:.2f} seconds"
@@ -461,6 +620,47 @@ def main(argv=None) -> int:
     # Duration & persistence (diagram: DURATION & LOGGING)
     dur = time.time() - start
     dur_line = f"Run duration: {dur:.2f} seconds"
+    # Token usage & cost calculation section
+    in_price_1k, out_price_1k, price_src = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    prompt_tokens = _TOKEN_USAGE["prompt"]
+    completion_tokens = _TOKEN_USAGE["completion"]
+    total_tokens = _TOKEN_USAGE["total"] or (prompt_tokens + completion_tokens)
+    cost_line = ""
+    if in_price_1k is not None and out_price_1k is not None:
+        input_cost = (prompt_tokens / 1000.0) * in_price_1k
+        output_cost = (completion_tokens / 1000.0) * out_price_1k
+        total_cost = input_cost + output_cost
+        print(colored_banner("TOKEN USAGE & COST", Colors.CYAN))
+        print(f"Input tokens: {prompt_tokens}")
+        print(f"Completion tokens: {completion_tokens}")
+        print(f"Total tokens: {total_tokens}")
+        print(f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]")
+        output_lines.append(plain_banner("TOKEN USAGE & COST"))
+        output_lines.append(f"Input tokens: {prompt_tokens}\n")
+        output_lines.append(f"Completion tokens: {completion_tokens}\n")
+        output_lines.append(f"Total tokens: {total_tokens}\n")
+        output_lines.append(
+            f"Estimated cost (USD): ${total_cost:.6f}  [input=${input_cost:.6f}, output=${output_cost:.6f}; source={price_src}]\n"
+        )
+    else:
+        # Pricing not set; still print tokens and guidance
+        print(colored_banner("TOKEN USAGE", Colors.CYAN))
+        print(f"Input tokens: {prompt_tokens}")
+        print(f"Completion tokens: {completion_tokens}")
+        print(f"Total tokens: {total_tokens}")
+        print(
+            "[INFO] Pricing not configured. Set per-1K token prices via env: "
+            f"AZURE_OPENAI_PRICE_{_normalize_dep_to_env_key(DEPLOYMENT_NAME or '')}_INPUT_PER_1K / ..._OUTPUT_PER_1K, "
+            "or AZURE_OPENAI_PRICE_INPUT_PER_1K / AZURE_OPENAI_PRICE_OUTPUT_PER_1K, "
+            "or add azure_openai_pricing.json."
+        )
+        output_lines.append(plain_banner("TOKEN USAGE"))
+        output_lines.append(f"Input tokens: {prompt_tokens}\n")
+        output_lines.append(f"Completion tokens: {completion_tokens}\n")
+        output_lines.append(f"Total tokens: {total_tokens}\n")
+        output_lines.append(
+            "[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n"
+        )
     print(colored_banner("RUN DURATION", Colors.CYAN))
     print(dur_line)
     output_lines.append(plain_banner("RUN DURATION"))
