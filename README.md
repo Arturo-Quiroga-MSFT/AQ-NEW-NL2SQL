@@ -42,5 +42,13 @@ Output logs will be written in this folder as `nl2sql_run_<query>_<timestamp>.tx
 
 ## Diagrams
 
-- End-to-end flow: see `docs/NL2SQL_PIPELINE_FLOW.md` for Mermaid flowchart and sequence diagram of the NL2SQL pipeline.
+End-to-end NL→SQL flowchart (generated from `docs/diagrams/nl2sql_flowchart.mmd`):
+
+<p align="center">
+  <img src="docs/diagrams/nl2sql_flowchart.svg" alt="NL2SQL Flowchart" width="800" />
+  <br />
+  <em>High-level flow from NL question to SQL generation and execution.</em>
+  
+</p>
+
 # AQ-NEW-NL2SQL
