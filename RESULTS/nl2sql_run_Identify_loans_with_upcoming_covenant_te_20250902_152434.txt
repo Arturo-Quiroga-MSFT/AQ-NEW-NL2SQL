@@ -1,0 +1,101 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Identify loans with upcoming covenant tests due (based on Frequency and LastTestDate) in the next 60 days, grouped by company.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "find_loans_with_upcoming_covenant_tests",
+  "description": "Identify loans that have a covenant test coming due within the next 60 days and group the results by company.",
+  "entities": {
+    "primary": ["Loan", "Company"],
+    "related": ["CovenantTest"]
+  },
+  "attributes": [
+    "LoanId",
+    "CompanyId",
+    "CompanyName",
+    "Frequency",
+    "LastTestDate",
+    "NextTestDate (derived)"
+  ],
+  "derivations": {
+    "NextTestDate": "DateAdd(LastTestDate, IntervalFromFrequency(Frequency))"
+  },
+  "filters": [
+    "NextTestDate >= CURRENT_DATE",
+    "NextTestDate <= CURRENT_DATE + 60 days"
+  ],
+  "group_by": ["CompanyId", "CompanyName"],
+  "result_level": "Loan",
+  "distinct": true,
+  "time_window": {
+    "type": "relative",
+    "from": "today",
+    "to": "today + 60 days"
+  },
+  "assumptions": [
+    "Upcoming excludes past-due tests (i.e., only NextTestDate >= today).",
+    "Frequency drives the interval added to LastTestDate (e.g., Monthly=+1 month, Quarterly=+3 months, Semi-Annual=+6 months, Annual=+12 months), but actual mapping should use the system’s frequency-to-interval rules."
+  ]
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: Loans and Companies from dbo.vw_LoanPortfolio; covenant metadata from dbo.Covenant (Frequency, LastTestDate). Optionally use dbo.CovenantSchedule if explicit TestDueDate exists.
+- Tables/Joins: vw_LoanPortfolio LP INNER JOIN dbo.Covenant C ON LP.LoanId=C.LoanId. Optionally LEFT JOIN CovenantSchedule to pick next scheduled TestDueDate; otherwise derive.
+- Derivations: NextTestDate = LastTestDate + interval mapped from Frequency (Monthly=+1m, Quarterly=+3m, Semi-Annual=+6m, Annual=+12m). If using schedule, NextTestDate is the minimum future TestDueDate.
+- Aggregations: For loans with multiple covenants, compute NextTestDate per covenant and select the earliest upcoming per loan (MIN or window ROW_NUMBER) to keep one row per loan. Use DISTINCT as safeguard.
+- Filters: NextTestDate >= today and <= today + 60 days; optionally restrict to active/open loans (Status not in Closed/Paid Off).
+- Order/Limit: Order by CompanyName, NextTestDate (no limit).
+- Assumptions: Use server “today”; Frequency values map cleanly; prefer schedule dates when present; upcoming excludes past-due.
+
+========== GENERATED SQL (RAW) ==========
+WITH Base AS (
+    SELECT
+        lp.LoanId,
+        l.CompanyId,
+        lp.CompanyName,
+        c.CovenantId,
+        c.Frequency,
+        c.LastTestDate,
+        CASE
+            WHEN c.LastTestDate IS NULL THEN NULL
+            WHEN UPPER(c.Frequency) LIKE '%SEMI%' AND UPPER(c.Frequency) LIKE '%ANNU%' THEN DATEADD(MONTH, 6, c.LastTestDate)
+            WHEN UPPER(c.Frequency) LIKE '%QUARTER%' THEN DATEADD(QUARTER, 1, c.LastTestDate)
+            WHEN UPPER(c.Frequency) LIKE '%ANNU%' OR UPPER(c.Frequency) LIKE '%YEAR%' THEN DATEADD(YEAR, 1, c.LastTestDate)
+            WHEN UPPER(c.Frequency) LIKE '%MONTH%' THEN DATEADD(MONTH, 1, c.LastTestDate)
+            WHEN UPPER(c.Frequency) LIKE '%WEEK%' THEN DATEADD(WEEK, 1, c.LastTestDate)
+            WHEN UPPER(c.Frequency) LIKE '%DAY%' THEN DATEADD(DAY, 1, c.LastTestDate)
+            ELSE NULL
+        END AS NextTestDate
+    FROM dbo.vw_LoanPortfolio lp
+    INNER JOIN dbo.Loan l ON l.LoanId = lp.LoanId
+    INNER JOIN dbo.Covenant c ON c.LoanId = lp.LoanId
+),
+Upcoming AS (
+    SELECT *
+    FROM Base
+    WHERE NextTestDate IS NOT NULL
+      AND NextTestDate >= CAST(GETDATE() AS DATE)
+      AND NextTestDate <= DATEADD(DAY, 60, CAST(GETDATE() AS DATE))
+),
+Ranked AS (
+    SELECT
+        u.*,
+        ROW_NUMBER() OVER (PARTITION BY u.LoanId ORDER BY u.NextTestDate ASC, u.CovenantId) AS rn
+    FROM Upcoming u
+)
+SELECT
+    r.LoanId,
+    r.CompanyId,
+    r.CompanyName,
+    r.Frequency,
+    r.LastTestDate,
+    r.NextTestDate
+FROM Ranked r
+WHERE r.rn = 1
+ORDER BY r.CompanyName, r.NextTestDate, r.LoanId;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+
+========== RUN DURATION ==========
+Run duration: 88.88 seconds

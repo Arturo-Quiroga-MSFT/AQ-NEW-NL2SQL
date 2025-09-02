@@ -147,7 +147,8 @@ def parse_nl_query(user_input: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-    return _azure_chat_completions(messages, max_completion_tokens=8192)
+        return _azure_chat_completions(messages, max_completion_tokens=8192)
+    # Non-reasoning path via LangChain
     chain = intent_prompt | llm  # type: ignore[arg-type]
     res = chain.invoke({"input": user_input})
     return res.content
@@ -227,7 +228,8 @@ def generate_sql(intent_entities: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-    return _azure_chat_completions(messages, max_completion_tokens=8192)
+        return _azure_chat_completions(messages, max_completion_tokens=8192)
+    # Non-reasoning path via LangChain
     chain = sql_prompt | llm  # type: ignore[arg-type]
     result = chain.invoke({"schema": schema, "intent_entities": intent_entities})
     return result.content
@@ -254,21 +256,33 @@ def generate_reasoning(intent_entities: str) -> str:
 def extract_and_sanitize_sql(raw_sql: str) -> str:
     """Extract SQL from LLM output and normalize quotes (diagram: SANITIZATION)."""
     sql_code = raw_sql
+    # 1) Prefer fenced code blocks if present (captures full content, e.g., WITH ...)
     code_block = re.search(r"```sql\s*([\s\S]+?)```", raw_sql, re.IGNORECASE)
     if not code_block:
         code_block = re.search(r"```([\s\S]+?)```", raw_sql)
     if code_block:
         sql_code = code_block.group(1).strip()
     else:
-        select_match = re.search(r"(SELECT[\s\S]+)", raw_sql, re.IGNORECASE)
-        if select_match:
-            sql_code = select_match.group(1).strip()
-    return (
+        # 2) If a CTE exists, start from WITH to capture the entire statement
+        with_match = re.search(r"(?is)\bWITH\b\s+[A-Za-z0-9_\[\]]+\s+AS\s*\(", raw_sql)
+        if with_match:
+            sql_code = raw_sql[with_match.start():].strip()
+        else:
+            # 3) Fallback to first SELECT
+            select_match = re.search(r"(?is)\bSELECT\b[\s\S]+", raw_sql)
+            if select_match:
+                sql_code = select_match.group(0).strip()
+            else:
+                sql_code = raw_sql.strip()
+
+    # Normalize quotes and strip stray markdown remnants
+    sql_code = (
         sql_code.replace("’", "'")
         .replace("‘", "'")
         .replace("“", '"')
         .replace("”", '"')
     )
+    return sql_code
 
 
 # ---------- Output formatting ----------

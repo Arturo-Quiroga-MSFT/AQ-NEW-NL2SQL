@@ -1,0 +1,322 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+By region, list the top 10 companies by total outstanding balance among loans with LTV > 80%, show each company’s share of the regional total, and include an ‘Others’ row aggregating the remainder.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Rank top companies by region based on loan exposure, show share, and aggregate remainder as 'Others'",
+  "dataset": "loans",
+  "dimensions": [
+    "region",
+    "company"
+  ],
+  "measure": {
+    "field": "outstanding_balance",
+    "aggregation": "SUM",
+    "alias": "total_outstanding_balance"
+  },
+  "filters": [
+    {
+      "field": "ltv",
+      "operator": ">",
+      "value": 80,
+      "unit": "percent"
+    }
+  ],
+  "grouping": {
+    "primary": "region",
+    "secondary": "company"
+  },
+  "ranking": {
+    "partition_by": "region",
+    "order_by": [
+      {
+        "field": "total_outstanding_balance",
+        "direction": "DESC"
+      }
+    ],
+    "top_n": 10
+  },
+  "computed_fields": [
+    {
+      "name": "regional_total_outstanding_balance",
+      "expression": "SUM(outstanding_balance) OVER (PARTITION BY region)"
+    },
+    {
+      "name": "company_share_of_region_total",
+      "expression": "total_outstanding_balance / regional_total_outstanding_balance"
+    }
+  ],
+  "post_processing": [
+    {
+      "type": "others_aggregation",
+      "partition_by": "region",
+      "include_top_n": 10,
+      "label": "Others"
+    }
+  ],
+  "output_fields": [
+    "region",
+    "company_or_others",
+    "total_outstanding_balance",
+    "company_share_of_region_total"
+  ],
+  "notes": [
+    "Interpret LTV > 80% as a percentage; if the source stores LTV as a decimal, use > 0.8 instead."
+  ]
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: region -> vw_LoanPortfolio.RegionName; company -> vw_LoanPortfolio.CompanyName; outstanding_balance -> vw_LoanPortfolio.PrincipalAmount; LTV -> computed as PrincipalAmount / latest collateral value per Loan.
+- Tables/Joins: Start from dbo.vw_LoanPortfolio. Left join a Collateral subquery that picks the latest ValuationDate per LoanId and sums ValueAmount (per loan). Use this to compute LTV.
+- Aggregations: Sum PrincipalAmount by RegionName and CompanyName for totals. Compute regional total via window SUM() OVER (PARTITION BY RegionName). Compute company share as company_total / regional_total.
+- Filters: Keep loans with LTV > 0.8 (interpret >80% as >0.8). Exclude loans lacking collateral value for LTV (or treat as not meeting filter).
+- Ranking/Top N: Use window function to rank companies within each region by summed outstanding balance; keep top 10.
+- Others aggregation: For each region, aggregate the remainder beyond top 10 into a single “Others” row with corresponding share.
+- Order/Limit: Present rows ordered by RegionName, balance desc within region.
+- Assumptions: PrincipalAmount approximates current outstanding; collateral values in loan currency; latest valuation per loan.
+
+========== GENERATED SQL (RAW) ==========
+WITH base AS (
+  SELECT
+    p.LoanId,
+    p.CompanyName,
+    p.RegionName,
+    p.CurrencyCode AS LoanCurrencyCode,
+    p.PrincipalAmount,
+    COALESCE(ob.OutstandingBalance, p.PrincipalAmount) AS outstanding_balance,
+    COALESCE(cv.CollateralValueInLoanCcy, 0) AS collateral_value_in_loan_ccy
+  FROM dbo.vw_LoanPortfolio p
+  OUTER APPLY (
+    SELECT TOP (1)
+      ps.StartingPrincipal AS OutstandingBalance
+    FROM dbo.PaymentSchedule ps
+    WHERE ps.LoanId = p.LoanId
+      AND (ps.PaidFlag = 0 OR ps.PaidFlag IS NULL)
+    ORDER BY ps.DueDate ASC
+  ) ob
+  OUTER APPLY (
+    SELECT
+      SUM(c.ValueAmount * COALESCE(fr.Rate, CASE WHEN c.CurrencyCode = p.CurrencyCode THEN 1.0 ELSE NULL END)) AS CollateralValueInLoanCcy
+    FROM dbo.Collateral c
+    OUTER APPLY (
+      SELECT TOP (1) r.Rate
+      FROM ref.FXRateDaily r
+      WHERE r.FromCurrency = c.CurrencyCode
+        AND r.ToCurrency = p.CurrencyCode
+      ORDER BY r.RateDate DESC
+    ) fr
+    WHERE c.LoanId = p.LoanId
+      AND (c.Status IS NULL OR c.Status NOT IN ('Inactive','Released'))
+  ) cv
+),
+filtered AS (
+  SELECT
+    LoanId,
+    CompanyName,
+    RegionName,
+    outstanding_balance,
+    collateral_value_in_loan_ccy,
+    CASE WHEN collateral_value_in_loan_ccy > 0
+         THEN CAST(outstanding_balance AS decimal(38,10)) / CAST(collateral_value_in_loan_ccy AS decimal(38,10))
+         ELSE NULL
+    END AS ltv_ratio
+  FROM base
+),
+eligible AS (
+  SELECT
+    LoanId,
+    CompanyName,
+    RegionName,
+    outstanding_balance
+  FROM filtered
+  WHERE ltv_ratio > 0.8
+),
+company_agg AS (
+  SELECT
+    RegionName AS region,
+    CompanyName AS company,
+    SUM(outstanding_balance) AS total_outstanding_balance
+  FROM eligible
+  GROUP BY RegionName, CompanyName
+),
+ranked AS (
+  SELECT
+    ca.region,
+    ca.company,
+    ca.total_outstanding_balance,
+    SUM(ca.total_outstanding_balance) OVER (PARTITION BY ca.region) AS regional_total_outstanding_balance,
+    ROW_NUMBER() OVER (PARTITION BY ca.region ORDER BY ca.total_outstanding_balance DESC, ca.company ASC) AS rn
+  FROM company_agg ca
+),
+top10_sum AS (
+  SELECT
+    region,
+    SUM(total_outstanding_balance) AS top10_sum,
+    MAX(regional_total_outstanding_balance) AS regional_total_outstanding_balance
+  FROM ranked
+  WHERE rn <= 10
+  GROUP BY region
+),
+top10_rows AS (
+  SELECT
+    region,
+    company AS company_or_others,
+    total_outstanding_balance,
+    CASE WHEN regional_total_outstanding_balance > 0
+         THEN CAST(total_outstanding_balance AS decimal(38,10)) / CAST(regional_total_outstanding_balance AS decimal(38,10))
+         ELSE 0
+    END AS company_share_of_region_total
+  FROM ranked
+  WHERE rn <= 10
+),
+others_rows AS (
+  SELECT
+    ts.region,
+    'Others' AS company_or_others,
+    (ts.regional_total_outstanding_balance - ts.top10_sum) AS total_outstanding_balance,
+    CASE WHEN ts.regional_total_outstanding_balance > 0
+         THEN CAST(ts.regional_total_outstanding_balance - ts.top10_sum AS decimal(38,10)) / CAST(ts.regional_total_outstanding_balance AS decimal(38,10))
+         ELSE 0
+    END AS company_share_of_region_total
+  FROM top10_sum ts
+  WHERE (ts.regional_total_outstanding_balance - ts.top10_sum) > 0
+)
+SELECT
+  region,
+  company_or_others,
+  total_outstanding_balance,
+  company_share_of_region_total
+FROM (
+  SELECT * FROM top10_rows
+  UNION ALL
+  SELECT * FROM others_rows
+) final
+ORDER BY region,
+         CASE WHEN company_or_others = 'Others' THEN 1 ELSE 0 END,
+         total_outstanding_balance DESC;
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT
+    p.LoanId,
+    p.CompanyName,
+    p.RegionName,
+    p.CurrencyCode AS LoanCurrencyCode,
+    p.PrincipalAmount,
+    COALESCE(ob.OutstandingBalance, p.PrincipalAmount) AS outstanding_balance,
+    COALESCE(cv.CollateralValueInLoanCcy, 0) AS collateral_value_in_loan_ccy
+  FROM dbo.vw_LoanPortfolio p
+  OUTER APPLY (
+    SELECT TOP (1)
+      ps.StartingPrincipal AS OutstandingBalance
+    FROM dbo.PaymentSchedule ps
+    WHERE ps.LoanId = p.LoanId
+      AND (ps.PaidFlag = 0 OR ps.PaidFlag IS NULL)
+    ORDER BY ps.DueDate ASC
+  ) ob
+  OUTER APPLY (
+    SELECT
+      SUM(c.ValueAmount * COALESCE(fr.Rate, CASE WHEN c.CurrencyCode = p.CurrencyCode THEN 1.0 ELSE NULL END)) AS CollateralValueInLoanCcy
+    FROM dbo.Collateral c
+    OUTER APPLY (
+      SELECT TOP (1) r.Rate
+      FROM ref.FXRateDaily r
+      WHERE r.FromCurrency = c.CurrencyCode
+        AND r.ToCurrency = p.CurrencyCode
+      ORDER BY r.RateDate DESC
+    ) fr
+    WHERE c.LoanId = p.LoanId
+      AND (c.Status IS NULL OR c.Status NOT IN ('Inactive','Released'))
+  ) cv
+),
+filtered AS (
+  SELECT
+    LoanId,
+    CompanyName,
+    RegionName,
+    outstanding_balance,
+    collateral_value_in_loan_ccy,
+    CASE WHEN collateral_value_in_loan_ccy > 0
+         THEN CAST(outstanding_balance AS decimal(38,10)) / CAST(collateral_value_in_loan_ccy AS decimal(38,10))
+         ELSE NULL
+    END AS ltv_ratio
+  FROM base
+),
+eligible AS (
+  SELECT
+    LoanId,
+    CompanyName,
+    RegionName,
+    outstanding_balance
+  FROM filtered
+  WHERE ltv_ratio > 0.8
+),
+company_agg AS (
+  SELECT
+    RegionName AS region,
+    CompanyName AS company,
+    SUM(outstanding_balance) AS total_outstanding_balance
+  FROM eligible
+  GROUP BY RegionName, CompanyName
+),
+ranked AS (
+  SELECT
+    ca.region,
+    ca.company,
+    ca.total_outstanding_balance,
+    SUM(ca.total_outstanding_balance) OVER (PARTITION BY ca.region) AS regional_total_outstanding_balance,
+    ROW_NUMBER() OVER (PARTITION BY ca.region ORDER BY ca.total_outstanding_balance DESC, ca.company ASC) AS rn
+  FROM company_agg ca
+),
+top10_sum AS (
+  SELECT
+    region,
+    SUM(total_outstanding_balance) AS top10_sum,
+    MAX(regional_total_outstanding_balance) AS regional_total_outstanding_balance
+  FROM ranked
+  WHERE rn <= 10
+  GROUP BY region
+),
+top10_rows AS (
+  SELECT
+    region,
+    company AS company_or_others,
+    total_outstanding_balance,
+    CASE WHEN regional_total_outstanding_balance > 0
+         THEN CAST(total_outstanding_balance AS decimal(38,10)) / CAST(regional_total_outstanding_balance AS decimal(38,10))
+         ELSE 0
+    END AS company_share_of_region_total
+  FROM ranked
+  WHERE rn <= 10
+),
+others_rows AS (
+  SELECT
+    ts.region,
+    'Others' AS company_or_others,
+    (ts.regional_total_outstanding_balance - ts.top10_sum) AS total_outstanding_balance,
+    CASE WHEN ts.regional_total_outstanding_balance > 0
+         THEN CAST(ts.regional_total_outstanding_balance - ts.top10_sum AS decimal(38,10)) / CAST(ts.regional_total_outstanding_balance AS decimal(38,10))
+         ELSE 0
+    END AS company_share_of_region_total
+  FROM top10_sum ts
+  WHERE (ts.regional_total_outstanding_balance - ts.top10_sum) > 0
+)
+SELECT
+  region,
+  company_or_others,
+  total_outstanding_balance,
+  company_share_of_region_total
+FROM (
+  SELECT * FROM top10_rows
+  UNION ALL
+  SELECT * FROM others_rows
+) final
+ORDER BY region,
+         CASE WHEN company_or_others = 'Others' THEN 1 ELSE 0 END,
+         total_outstanding_balance DESC;
+
+========== SQL QUERY ERROR ==========
+[ERROR] Failed to execute SQL query: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Incorrect syntax near ')'. (102) (SQLExecDirectW)")
+
+========== RUN DURATION ==========
+Run duration: 107.78 seconds
