@@ -1,0 +1,68 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each company, compute the total outstanding principal (sum of Loan.PrincipalAmount).
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "aggregate_per_entity",
+  "description": "Compute the total outstanding principal per company.",
+  "group_by": [
+    {
+      "entity": "Company",
+      "field": "CompanyId or CompanyName"
+    }
+  ],
+  "measures": [
+    {
+      "field": "Loan.PrincipalAmount",
+      "aggregation": "SUM",
+      "alias": "total_outstanding_principal"
+    }
+  ],
+  "filters": [],
+  "entities": [
+    { "table": "Loan", "field": "PrincipalAmount" },
+    { "table": "Company", "field": "CompanyId/Name" }
+  ],
+  "notes": "User phrasing says 'outstanding principal' but explicitly specifies summing Loan.PrincipalAmount; no additional filters (e.g., only active/outstanding loans) were provided."
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: Company -> CompanyName (and optionally CompanyId); Loan -> PrincipalAmount.
+- Tables/Joins: Use dbo.vw_LoanPortfolio as primary source. Join dbo.Loan on LoanId only if CompanyId is required in the output.
+- Aggregations: SUM(PrincipalAmount) as total_outstanding_principal; GROUP BY CompanyName (and CompanyId if included).
+- Filters: None, per instructions. Note: no status filter (e.g., active/outstanding) applied.
+- Order/Limit: Order by total_outstanding_principal DESC; no limit unless requested.
+- Assumptions:
+  - vw_LoanPortfolio is one row per loan to avoid double counting.
+  - “Outstanding principal” is interpreted as the Loan.PrincipalAmount per instructions, not amortized balance.
+  - Currency: amounts are comparable; if portfolio is multi-currency, either add CurrencyCode to GROUP BY or convert to a base currency via ref.FXRateDaily before summing.
+
+========== GENERATED SQL (RAW) ==========
+SELECT
+  CompanyName,
+  SUM(PrincipalAmount) AS total_outstanding_principal
+FROM dbo.vw_LoanPortfolio
+GROUP BY CompanyName
+
+========== SQL QUERY RESULTS (TABLE) ==========
+CompanyName              | total_outstanding_principal
+-------------------------+----------------------------
+Acme Industrial Holdings | 10000000.00                
+Alexandria Textiles Co   | 12000000.00                
+Amsterdam FinTech BV     | 18000000.00                
+Blue Ridge Energy Corp   | 25000000.00                
+Cape Coast Minerals Ltd  | 12000000.00                
+Gaulois Pharma SA        | 18000000.00                
+Lagos Marine Services    | 12000000.00                
+Mumbai InfraTech Ltd     | 22000000.00                
+Nairobi AgriFoods PLC    | 12000000.00                
+Nordwind Logistics GmbH  | 18000000.00                
+Osaka Precision K.K.     | 22000000.00                
+Shanghai GreenChem Co    | 22000000.00                
+Singapore Data Centers   | 22000000.00                
+Thyme Retail Group       | 18000000.00                
+Toronto Health Devices   | 25000000.00                
+
+========== RUN DURATION ==========
+Run duration: 47.22 seconds

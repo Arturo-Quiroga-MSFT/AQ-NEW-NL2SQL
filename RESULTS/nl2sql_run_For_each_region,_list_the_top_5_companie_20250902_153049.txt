@@ -1,0 +1,83 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each region, list the top 5 companies by total principal amount.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Retrieve, for each region, the top 5 companies ranked by total principal amount (descending).",
+  "entities": {
+    "dimensions": ["region", "company"],
+    "measure": {
+      "field": "principal_amount",
+      "aggregation": "SUM",
+      "alias": "total_principal_amount"
+    },
+    "group_by": ["region", "company"],
+    "partition_by": ["region"],
+    "order_by": [
+      {
+        "field": "total_principal_amount",
+        "direction": "DESC"
+      }
+    ],
+    "top_n": 5,
+    "limit_per_group": 5,
+    "select": ["region", "company", "total_principal_amount"],
+    "filters": []
+  }
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: Region -> vw_LoanPortfolio.RegionName; Company -> vw_LoanPortfolio.CompanyName; Measure -> SUM(vw_LoanPortfolio.PrincipalAmount) as total_principal_amount.
+- Tables/Joins: Use dbo.vw_LoanPortfolio only (it already contains RegionName, CompanyName, PrincipalAmount). No joins needed unless currency normalization is required.
+- Aggregations: GROUP BY RegionName, CompanyName; compute SUM(PrincipalAmount).
+- Filters: None specified. Optionally exclude NULL RegionName/CompanyName. No status/date filters unless “active/current” is desired.
+- Order/Limit: Apply ROW_NUMBER() OVER (PARTITION BY RegionName ORDER BY total_principal_amount DESC) and keep rows with row_number <= 5. Final ordering by RegionName, total_principal_amount DESC.
+- Assumptions: PrincipalAmount is aggregated in native currency as stored; no FX conversion. Each company appears under the region tied to its loans’ RegionName in the view. Ties are broken arbitrarily (ROW_NUMBER); switch to DENSE_RANK if including all ties is required.
+
+========== GENERATED SQL (RAW) ==========
+WITH company_totals AS (
+    SELECT
+        RegionName AS region,
+        CompanyName AS company,
+        SUM(COALESCE(PrincipalAmount, 0)) AS total_principal_amount
+    FROM dbo.vw_LoanPortfolio
+    GROUP BY RegionName, CompanyName
+),
+ranked AS (
+    SELECT
+        region,
+        company,
+        total_principal_amount,
+        ROW_NUMBER() OVER (PARTITION BY region ORDER BY total_principal_amount DESC, company ASC) AS rn
+    FROM company_totals
+)
+SELECT
+    region,
+    company,
+    total_principal_amount
+FROM ranked
+WHERE rn <= 5
+ORDER BY region, total_principal_amount DESC, company
+
+========== SQL QUERY RESULTS (TABLE) ==========
+region   | company                  | total_principal_amount
+---------+--------------------------+-----------------------
+Africa   | Alexandria Textiles Co   | 12000000.00           
+Africa   | Cape Coast Minerals Ltd  | 12000000.00           
+Africa   | Lagos Marine Services    | 12000000.00           
+Africa   | Nairobi AgriFoods PLC    | 12000000.00           
+Americas | Blue Ridge Energy Corp   | 25000000.00           
+Americas | Toronto Health Devices   | 25000000.00           
+Americas | Acme Industrial Holdings | 10000000.00           
+Asia     | Mumbai InfraTech Ltd     | 22000000.00           
+Asia     | Osaka Precision K.K.     | 22000000.00           
+Asia     | Shanghai GreenChem Co    | 22000000.00           
+Asia     | Singapore Data Centers   | 22000000.00           
+Europe   | Amsterdam FinTech BV     | 18000000.00           
+Europe   | Gaulois Pharma SA        | 18000000.00           
+Europe   | Nordwind Logistics GmbH  | 18000000.00           
+Europe   | Thyme Retail Group       | 18000000.00           
+
+========== RUN DURATION ==========
+Run duration: 39.93 seconds
