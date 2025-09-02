@@ -1,26 +1,37 @@
 """
-nl2sql_main.py - NL2SQL-Only Pipeline Entrypoint
-=================================================
+nl2sql_main.py — NL → Intent → SQL pipeline (diagram-aligned)
+=============================================================
 
-Purpose
--------
-Focus exclusively on the NL2SQL flow following the same approach and sequence as
-the combined pipeline in `main.py`, but without any DAX generation or execution.
+Overview
+--------
+This entrypoint implements the NL→SQL path shown in the NL2SQL flowchart. It mirrors
+the sequence from the older prototype but excludes DAX. The commentary highlights each
+decision node and step in the diagram.
 
 What it does
 ------------
 1) Extract intent and entities from a natural language question
-2) Generate a T-SQL query using schema-aware prompting
+2) Generate a T‑SQL query using schema‑aware prompting
 3) Sanitize/extract the SQL code from the LLM output
 4) Execute the SQL against Azure SQL Database
 5) Print results in a formatted table and persist the full run output to a file
 
+Relevant CLI flags (map to decision nodes)
+------------------------------------------
+--query            Provide the question inline, otherwise you’ll be prompted
+--refresh-schema   Refresh schema cache before generation
+--no-reasoning     Skip the reasoning/plan step
+--explain-only     Show intent + reasoning only, skip SQL & execution
+--no-exec          Generate SQL but don’t execute
+--whoami           Print script purpose and exit
+
 Requirements
 ------------
-- Environment variables set for Azure OpenAI and Azure SQL (see README/your .env):
-  AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT_NAME
-  AZURE_SQL_SERVER, AZURE_SQL_DB, AZURE_SQL_USER, AZURE_SQL_PASSWORD
-- Python packages: langchain-openai, langchain, python-dotenv, pyodbc
+- Environment variables for Azure OpenAI and Azure SQL (see README/.env):
+    AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT_NAME,
+    AZURE_OPENAI_API_VERSION,
+    AZURE_SQL_SERVER, AZURE_SQL_DB, AZURE_SQL_USER, AZURE_SQL_PASSWORD
+- Python packages: langchain-openai, langchain, python-dotenv, pyodbc, requests
 """
 
 import os
@@ -45,11 +56,12 @@ DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 # Allow overriding Azure OpenAI REST api-version via env; default to latest preview suited for GPT-5 Chat Completions
 API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
 
-# Note on o-series/gpt-5 models: According to Azure documentation, reasoning models (o-series and gpt-5)
+# Note on o-series/GPT‑5 models:
+# According to Azure documentation, reasoning models (o-series and gpt-5)
 # do NOT support temperature/top_p/presence_penalty/frequency_penalty with Chat Completions.
 # Ref: https://learn.microsoft.com/azure/ai-foundry/openai/how-to/reasoning#api-&-feature-support
 
-# Helper: detect o-series and gpt-5 deployments which do not support temperature/top_p
+# Helper: detect o-series and gpt‑5 deployments which do not support temperature/top_p
 def _is_reasoning_like_model(deployment_name: str | None) -> bool:
     name = (deployment_name or "").lower()
     return name.startswith("o") or name.startswith("gpt-5")
@@ -59,10 +71,11 @@ _USING_REASONING_STYLE = _is_reasoning_like_model(DEPLOYMENT_NAME)
 
 
 def _make_llm():
-    """Create an LLM instance.
+    """Create an LLM instance for non‑reasoning models; return None for o*/gpt‑5.
 
-    For o-series/gpt-5 deployments, we avoid LangChain defaults that send temperature by
-    using a direct HTTP call path elsewhere. For non-o-series, use LangChain AzureChatOpenAI.
+    For o-series/gpt‑5 deployments, we avoid LangChain defaults that may send unsupported
+    parameters and instead use a direct HTTP call path. For non‑o-series, we use the
+    AzureChatOpenAI LangChain wrapper with the configured api_version.
     """
     if _USING_REASONING_STYLE:
         return None  # We'll use direct Azure Chat Completions calls without temperature
@@ -76,7 +89,7 @@ def _make_llm():
 
 llm = _make_llm()
 
-# ---------- Prompt setup ----------
+# ---------- Prompt setup (diagram: Intent → Reasoning → SQL) ----------
 
 # Shared prompt text constants (reused for direct API calls)
 INTENT_PROMPT_TEXT = (
@@ -127,7 +140,7 @@ intent_prompt = ChatPromptTemplate.from_template(INTENT_PROMPT_TEXT)
 
 
 def parse_nl_query(user_input: str) -> str:
-    """Run the intent extraction chain and return the structured intent/entities."""
+    """Extract intent and entities (diagram: INTENT & ENTITIES)."""
     if _USING_REASONING_STYLE:
         prompt_text = INTENT_PROMPT_TEXT.format(input=user_input)
         messages = [
@@ -150,11 +163,7 @@ reasoning_prompt = ChatPromptTemplate.from_template(REASONING_PROMPT_TEXT)
 # ---------- Direct Azure Chat Completions for o-series / gpt-5 ----------
 
 def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_tokens: int | None = None) -> str:
-    """Call Azure OpenAI Chat Completions API directly without temperature/top_p for o-series/gpt-5.
-
-    Docs: Azure reasoning models (o-series) do NOT support temperature/top_p/presence_penalty/frequency_penalty.
-    See: https://learn.microsoft.com/azure/ai-foundry/openai/how-to/reasoning#api-&-feature-support
-    """
+    """Direct Chat Completions call without temperature/top_p (reasoning-safe)."""
     import requests  # lazy import
 
     url = f"{ENDPOINT.rstrip('/')}/openai/deployments/{DEPLOYMENT_NAME}/chat/completions?api-version={API_VERSION}"
@@ -209,7 +218,7 @@ def _safe_import_sql_executor():
 
 
 def generate_sql(intent_entities: str) -> str:
-    """Generate a SQL query from structured intent/entities with schema context."""
+    """Generate SQL from intent/entities with schema context (diagram: SQL GENERATION)."""
     get_schema_ctx = _safe_import_schema_reader()
     schema = get_schema_ctx()
     if _USING_REASONING_STYLE:
@@ -224,7 +233,7 @@ def generate_sql(intent_entities: str) -> str:
 
 
 def generate_reasoning(intent_entities: str) -> str:
-    """Generate a short, high-level reasoning summary for SQL construction."""
+    """Produce a short plan for SQL construction (optional diagram branch)."""
     try:
         get_schema_ctx = _safe_import_schema_reader()
         schema = get_schema_ctx()
@@ -242,7 +251,7 @@ def generate_reasoning(intent_entities: str) -> str:
 
 
 def extract_and_sanitize_sql(raw_sql: str) -> str:
-    """Extract SQL code from LLM output and normalize quotes for execution."""
+    """Extract SQL from LLM output and normalize quotes (diagram: SANITIZATION)."""
     sql_code = raw_sql
     code_block = re.search(r"```sql\s*([\s\S]+?)```", raw_sql, re.IGNORECASE)
     if not code_block:
@@ -325,7 +334,7 @@ def main(argv=None) -> int:
     start = time.time()
     output_lines = []
 
-    # 1) Get user query
+    # 1) Get user query (diagram: NATURAL LANGUAGE INPUT)
     if args.query:
         query = args.query
     else:
@@ -336,14 +345,14 @@ def main(argv=None) -> int:
     output_lines.append(plain_banner("NATURAL LANGUAGE QUERY"))
     output_lines.append(query + "\n")
 
-    # 2) Extract intent/entities
+    # 2) Extract intent/entities (diagram: INTENT & ENTITIES)
     intent_entities = parse_nl_query(query)
     print(colored_banner("INTENT & ENTITIES", Colors.BLUE))
     print(intent_entities + "\n")
     output_lines.append(plain_banner("INTENT & ENTITIES"))
     output_lines.append(intent_entities + "\n")
 
-    # Optional: refresh schema cache on demand
+    # Optional: refresh schema cache on demand (diagram: REFRESH SCHEMA branch)
     if args.refresh_schema:
         print(colored_banner("REFRESHING SCHEMA CACHE", Colors.CYAN))
         output_lines.append(plain_banner("REFRESHING SCHEMA CACHE"))
@@ -362,7 +371,7 @@ def main(argv=None) -> int:
             print(msg + "\n")
             output_lines.append(msg + "\n")
 
-    # 2.5) Reasoning summary (before SQL)
+    # 2.5) Reasoning summary (before SQL) — optional planning step
     if not args.no_reasoning or args.explain_only:
         reasoning = generate_reasoning(intent_entities)
         print(colored_banner("SQL GENERATION REASONING", Colors.CYAN))
@@ -370,7 +379,7 @@ def main(argv=None) -> int:
         output_lines.append(plain_banner("SQL GENERATION REASONING"))
         output_lines.append(reasoning + "\n")
 
-    # Explain-only mode: stop before SQL generation/execution
+    # Explain-only mode: stop before SQL generation/execution (diagram end)
     if args.explain_only:
         note = "Explain-only mode: SQL generation and execution skipped"
         print(colored_banner("EXPLAIN-ONLY MODE", Colors.CYAN))
@@ -398,14 +407,14 @@ def main(argv=None) -> int:
         print(f"[INFO] Run results written to {out_path}")
         return 0
 
-    # 3) Generate SQL
+    # 3) Generate SQL (diagram: SQL GENERATION)
     raw_sql = generate_sql(intent_entities)
     print(colored_banner("GENERATED SQL (RAW)", Colors.GREEN))
     print(raw_sql + "\n")
     output_lines.append(plain_banner("GENERATED SQL (RAW)"))
     output_lines.append(raw_sql + "\n")
 
-    # 4) Sanitize SQL
+    # 4) Sanitize SQL (diagram: SQL SANITIZATION)
     sql_to_run = extract_and_sanitize_sql(raw_sql)
     if sql_to_run != raw_sql:
         print(colored_banner("SANITIZED SQL (FOR EXECUTION)", Colors.GREEN))
@@ -413,7 +422,7 @@ def main(argv=None) -> int:
         output_lines.append(plain_banner("SANITIZED SQL (FOR EXECUTION)"))
         output_lines.append(sql_to_run + "\n")
 
-    # 5) Execute + format results
+    # 5) Execute + format results (diagram: EXECUTION)
     if not args.no_exec:
         try:
             print(colored_banner("EXECUTING SQL QUERY", Colors.GREEN))
@@ -434,7 +443,7 @@ def main(argv=None) -> int:
         print(colored_banner("EXECUTION SKIPPED (--no-exec)", Colors.CYAN))
         output_lines.append(plain_banner("EXECUTION SKIPPED (--no-exec)"))
 
-    # Duration
+    # Duration & persistence (diagram: DURATION & LOGGING)
     dur = time.time() - start
     dur_line = f"Run duration: {dur:.2f} seconds"
     print(colored_banner("RUN DURATION", Colors.CYAN))
