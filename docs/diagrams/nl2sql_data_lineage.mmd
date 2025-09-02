@@ -1,0 +1,71 @@
+flowchart LR
+  subgraph Q[Question types]
+  q1["Portfolio overview (exposure by region/subregion)"]
+    q2[Rate/spread analysis]
+    q3[Delinquency & payments]
+    q4[Covenant compliance & risk]
+    q5[Customer profiling]
+    q6[Collateral valuation]
+    q7[FX-normalized metrics]
+  end
+
+  subgraph S[Data sources (views/tables)]
+    s1[(dbo.vw_LoanPortfolio)]
+    s2[(dbo.Loan)]
+    s3[(dbo.PaymentSchedule)]
+    s4[(dbo.PaymentEvent)]
+    s5[(dbo.Covenant)]
+    s6[(dbo.CovenantSchedule)]
+    s7[(dbo.CovenantTestResult)]
+    s8[(dbo.RiskMetricHistory)]
+    s9[(dbo.Company)]
+    s10[(dbo.CustomerProfile)]
+    s11[(dbo.CompanyAddress)]
+    s12[(dbo.Collateral)]
+    s13[(ref.Region)]
+    s14[(ref.Subregion)]
+    s15[(ref.Country)]
+    s16[(ref.Currency)]
+    s17[(ref.ReferenceRate)]
+    s18[(ref.FXRateDaily)]
+  end
+
+  %% Portfolio overview
+  q1 --> s1
+  q1 --> s13
+  q1 --> s14
+  q1 --> s15
+  q1 --> s16
+
+  %% Rate/spread analysis
+  q2 --> s1
+  q2 --> s17
+
+  %% Delinquency & payments
+  q3 --> s2
+  q3 --> s3
+  q3 --> s4
+  q3 --> s9
+
+  %% Covenant compliance & risk
+  q4 --> s5
+  q4 --> s6
+  q4 --> s7
+  q4 --> s8
+  q4 --> s2
+  q4 --> s9
+
+  %% Customer profiling
+  q5 --> s9
+  q5 --> s10
+  q5 --> s11
+
+  %% Collateral valuation
+  q6 --> s12
+  q6 --> s2
+  q6 --> s16
+
+  %% FX-normalized metrics
+  q7 --> s1
+  q7 --> s18
+  q7 --> s16

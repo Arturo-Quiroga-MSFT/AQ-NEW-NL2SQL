@@ -1,0 +1,66 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Weighted average interest rate by region and currency (weighted by PrincipalAmount)
+
+========== INTENT & ENTITIES ==========
+Intent:
+  Calculate a weighted average
+
+Entities:
+  measure: InterestRate
+  weightField: PrincipalAmount
+  groupBy:
+    - Region
+    - Currency
+
+========== SQL GENERATION REASONING ==========
+• Entities mapping  
+  – Map measure “InterestRate” to vw_LoanPortfolio.InterestRatePct  
+  – Map weight “PrincipalAmount” to vw_LoanPortfolio.PrincipalAmount  
+  – Group by vw_LoanPortfolio.RegionName and vw_LoanPortfolio.CurrencyCode  
+
+• Tables/Joins  
+  – Use dbo.vw_LoanPortfolio as the sole data source (contains all needed columns)  
+
+• Aggregations  
+  – Compute weighted average: SUM(InterestRatePct * PrincipalAmount) / SUM(PrincipalAmount)  
+
+• Filters  
+  – Exclude records where InterestRatePct or PrincipalAmount is NULL or PrincipalAmount ≤ 0  
+  – Optionally restrict to active/open loans if business logic requires  
+
+• Order/Limit  
+  – ORDER BY RegionName, CurrencyCode  
+  – No row limit unless specified  
+
+• Assumptions  
+  – InterestRatePct is consistent in percentage units  
+  – Total principal per group is > 0 to avoid division errors
+
+========== GENERATED SQL (RAW) ==========
+SELECT
+    RegionName AS Region,
+    CurrencyCode AS Currency,
+    SUM(InterestRatePct * PrincipalAmount) / NULLIF(SUM(PrincipalAmount), 0) AS WeightedAvgInterestRatePct
+FROM dbo.vw_LoanPortfolio
+GROUP BY
+    RegionName,
+    CurrencyCode;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Region   | Currency | WeightedAvgInterestRatePct
+---------+----------+---------------------------
+Asia     | CNY      | 3.900000                  
+Europe   | EUR      | 4.750000                  
+Europe   | GBP      | 4.750000                  
+Asia     | INR      | 3.900000                  
+Asia     | JPY      | 3.900000                  
+Africa   | KES      | 9.500000                  
+Africa   | NGN      | 9.500000                  
+Africa   | USD      | 9.500000                  
+Americas | USD      | 6.166666                  
+Asia     | USD      | 3.900000                  
+Africa   | ZAR      | 9.500000                  
+
+========== RUN DURATION ==========
+Run duration: 16.54 seconds

@@ -1,0 +1,315 @@
+{
+  "tables": {
+    "dbo.Collateral": [
+      "CollateralId",
+      "LoanId",
+      "CollateralType",
+      "Description",
+      "Jurisdiction",
+      "ValueAmount",
+      "CurrencyCode",
+      "ValuationDate",
+      "Status"
+    ],
+    "dbo.Company": [
+      "CompanyId",
+      "CompanyName",
+      "CountryCode",
+      "Industry",
+      "CreditRating",
+      "FoundedYear",
+      "EmployeeCount"
+    ],
+    "dbo.CompanyAddress": [
+      "AddressId",
+      "CompanyId",
+      "AddressType",
+      "Line1",
+      "City",
+      "StateProvince",
+      "PostalCode",
+      "CountryCode",
+      "Latitude",
+      "Longitude",
+      "EffectiveDate"
+    ],
+    "dbo.Covenant": [
+      "CovenantId",
+      "LoanId",
+      "CovenantType",
+      "Operator",
+      "Threshold",
+      "Frequency",
+      "LastTestDate",
+      "Status",
+      "Notes"
+    ],
+    "dbo.CovenantSchedule": [
+      "CovenantScheduleId",
+      "CovenantId",
+      "TestDueDate",
+      "RequiredOperator",
+      "RequiredThreshold",
+      "NotificationDays"
+    ],
+    "dbo.CovenantTestResult": [
+      "TestResultId",
+      "CovenantId",
+      "LoanId",
+      "TestDate",
+      "Status",
+      "ObservedValue",
+      "Notes"
+    ],
+    "dbo.CustomerProfile": [
+      "CustomerProfileId",
+      "CompanyId",
+      "LegalName",
+      "TaxId",
+      "ParentCompanyId",
+      "OwnershipType",
+      "ESGScore",
+      "AnnualRevenueUSD",
+      "Headcount",
+      "Website",
+      "IncorporationDate",
+      "CreditOfficer",
+      "RiskAppetite"
+    ],
+    "dbo.Loan": [
+      "LoanId",
+      "CompanyId",
+      "LoanNumber",
+      "OriginationDate",
+      "MaturityDate",
+      "PrincipalAmount",
+      "CurrencyCode",
+      "InterestRatePct",
+      "InterestRateType",
+      "ReferenceRate",
+      "SpreadBps",
+      "AmortizationType",
+      "PaymentFreqMonths",
+      "Purpose",
+      "Status",
+      "ReferenceRateCode"
+    ],
+    "dbo.PaymentEvent": [
+      "PaymentEventId",
+      "LoanId",
+      "EventDate",
+      "EventType",
+      "Amount",
+      "CurrencyCode",
+      "DaysDelinquent",
+      "Notes"
+    ],
+    "dbo.PaymentSchedule": [
+      "ScheduleId",
+      "LoanId",
+      "PaymentNumber",
+      "DueDate",
+      "StartingPrincipal",
+      "PrincipalDue",
+      "InterestDue",
+      "TotalDue",
+      "CurrencyCode",
+      "Status",
+      "PaidFlag",
+      "PaidDate",
+      "EndingPrincipal"
+    ],
+    "dbo.RiskMetricHistory": [
+      "RiskMetricHistoryId",
+      "CompanyId",
+      "AsOfDate",
+      "MetricName",
+      "MetricValue",
+      "Source"
+    ],
+    "ref.Country": [
+      "CountryCode",
+      "CountryName",
+      "RegionId",
+      "SubregionId"
+    ],
+    "ref.Currency": [
+      "CurrencyCode",
+      "CurrencyName",
+      "Symbol"
+    ],
+    "ref.FXRateDaily": [
+      "RateDate",
+      "FromCurrency",
+      "ToCurrency",
+      "Rate"
+    ],
+    "ref.ReferenceRate": [
+      "ReferenceRateCode",
+      "Description",
+      "TenorMonths",
+      "CurrencyCode"
+    ],
+    "ref.Region": [
+      "RegionId",
+      "RegionName"
+    ],
+    "ref.Subregion": [
+      "SubregionId",
+      "SubregionName",
+      "RegionId"
+    ]
+  },
+  "relationships": [
+    {
+      "from_table": "dbo.Collateral",
+      "from_column": "CurrencyCode",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "dbo.Collateral",
+      "from_column": "LoanId",
+      "to_table": "dbo.Loan",
+      "to_column": "LoanId"
+    },
+    {
+      "from_table": "dbo.Company",
+      "from_column": "CountryCode",
+      "to_table": "ref.Country",
+      "to_column": "CountryCode"
+    },
+    {
+      "from_table": "dbo.CompanyAddress",
+      "from_column": "CompanyId",
+      "to_table": "dbo.Company",
+      "to_column": "CompanyId"
+    },
+    {
+      "from_table": "dbo.CompanyAddress",
+      "from_column": "CountryCode",
+      "to_table": "ref.Country",
+      "to_column": "CountryCode"
+    },
+    {
+      "from_table": "dbo.Covenant",
+      "from_column": "LoanId",
+      "to_table": "dbo.Loan",
+      "to_column": "LoanId"
+    },
+    {
+      "from_table": "dbo.CovenantSchedule",
+      "from_column": "CovenantId",
+      "to_table": "dbo.Covenant",
+      "to_column": "CovenantId"
+    },
+    {
+      "from_table": "dbo.CovenantTestResult",
+      "from_column": "CovenantId",
+      "to_table": "dbo.Covenant",
+      "to_column": "CovenantId"
+    },
+    {
+      "from_table": "dbo.CovenantTestResult",
+      "from_column": "LoanId",
+      "to_table": "dbo.Loan",
+      "to_column": "LoanId"
+    },
+    {
+      "from_table": "dbo.CustomerProfile",
+      "from_column": "CompanyId",
+      "to_table": "dbo.Company",
+      "to_column": "CompanyId"
+    },
+    {
+      "from_table": "dbo.CustomerProfile",
+      "from_column": "ParentCompanyId",
+      "to_table": "dbo.Company",
+      "to_column": "CompanyId"
+    },
+    {
+      "from_table": "dbo.Loan",
+      "from_column": "CompanyId",
+      "to_table": "dbo.Company",
+      "to_column": "CompanyId"
+    },
+    {
+      "from_table": "dbo.Loan",
+      "from_column": "CurrencyCode",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "dbo.Loan",
+      "from_column": "ReferenceRateCode",
+      "to_table": "ref.ReferenceRate",
+      "to_column": "ReferenceRateCode"
+    },
+    {
+      "from_table": "dbo.PaymentEvent",
+      "from_column": "CurrencyCode",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "dbo.PaymentEvent",
+      "from_column": "LoanId",
+      "to_table": "dbo.Loan",
+      "to_column": "LoanId"
+    },
+    {
+      "from_table": "dbo.PaymentSchedule",
+      "from_column": "CurrencyCode",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "dbo.PaymentSchedule",
+      "from_column": "LoanId",
+      "to_table": "dbo.Loan",
+      "to_column": "LoanId"
+    },
+    {
+      "from_table": "dbo.RiskMetricHistory",
+      "from_column": "CompanyId",
+      "to_table": "dbo.Company",
+      "to_column": "CompanyId"
+    },
+    {
+      "from_table": "ref.Country",
+      "from_column": "RegionId",
+      "to_table": "ref.Region",
+      "to_column": "RegionId"
+    },
+    {
+      "from_table": "ref.Country",
+      "from_column": "SubregionId",
+      "to_table": "ref.Subregion",
+      "to_column": "SubregionId"
+    },
+    {
+      "from_table": "ref.FXRateDaily",
+      "from_column": "FromCurrency",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "ref.FXRateDaily",
+      "from_column": "ToCurrency",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "ref.ReferenceRate",
+      "from_column": "CurrencyCode",
+      "to_table": "ref.Currency",
+      "to_column": "CurrencyCode"
+    },
+    {
+      "from_table": "ref.Subregion",
+      "from_column": "RegionId",
+      "to_table": "ref.Region",
+      "to_column": "RegionId"
+    }
+  ]
+}

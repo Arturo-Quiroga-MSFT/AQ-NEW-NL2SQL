@@ -1,0 +1,51 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each region, list the top 5 companies by total principal amount
+
+========== INTENT & ENTITIES ==========
+Intent:
+get_top_n_companies_by_region
+
+Entities:
+- dimension:
+    name: region
+- measure:
+    field: principal_amount
+    aggregation: SUM
+- entity:
+    name: company
+- top_n:
+    value: 5
+- order:
+    field: SUM(principal_amount)
+    direction: DESC
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping  
+  • Region → vw_LoanPortfolio.RegionName  
+  • Company → vw_LoanPortfolio.CompanyName  
+  • Principal amount measure → SUM(vw_LoanPortfolio.PrincipalAmount)
+
+- Tables/Joins  
+  • Source data from dbo.vw_LoanPortfolio (already contains region, company, principal)
+
+- Aggregations  
+  • Compute total principal per region‐company group via SUM(PrincipalAmount)
+
+- Filters  
+  • No additional filters unless only “active” or date‐range loans required (assume all)
+
+- Order/Limit  
+  • Use ROW_NUMBER() partitioned by RegionName, ordered by SUM(PrincipalAmount) DESC  
+  • Select rows where row number ≤ 5
+
+- Assumptions  
+  • All loans included  
+  • No currency conversion needed as principal is single currency context or harmonized in view  
+  • Top N applied per region independently
+
+========== EXPLAIN-ONLY MODE ==========
+Explain-only mode: SQL generation and execution skipped
+
+========== RUN DURATION ==========
+Run duration: 15.93 seconds

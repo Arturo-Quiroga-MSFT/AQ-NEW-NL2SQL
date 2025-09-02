@@ -1,0 +1,34 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+what is in the DB
+
+========== GENERATED SQL ==========
+select top 10 
+    c.customer_name,
+    sum(cl.principal_balance) as total_principal_balance,
+    sum(cl.total_balance) as total_outstanding_balance
+from FIS_CL_DETAIL_FACT cl
+inner join FIS_CUSTOMER_DIMENSION c
+    on cl.customer_key = c.customer_key
+inner join FIS_MONTH_DIMENSION m
+    on cl.month_id = m.month_id
+where m.reporting_date >= dateadd(year, -1, cast(getdate() as date))
+group by c.customer_name
+order by total_principal_balance desc;
+
+========== SQL QUERY ERROR ==========
+[ERROR] Failed to execute SQL query: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'FIS_CL_DETAIL_FACT'. (208) (SQLExecDirectW)")
+
+========== GENERATED DAX ==========
+- Any dimension attributes to filter or group by (e.g. CUSTOMER_TYPE_DESCRIPTION, MONTH_NAME)
+- Any filtering conditions (e.g. month = "January", CUSTOMER_NAME = "XYZ")
+
+========== FORMATTED DAX ==========
+- Any dimension attributes to filter or group by (e.g. CUSTOMER_TYPE_DESCRIPTION, MONTH_NAME)
+- Any filtering conditions (e.g. month = "January", CUSTOMER_NAME = "XYZ")
+
+========== DAX EXECUTION WARNING ==========
+[WARN] Skipping DAX execution: DAX over HTTP/XMLA failed. Check PBI_* env vars, XMLA endpoint, dataset name, and permissions. Root error: Power BI Execute Queries API failed with HTTP 400. Error details: {"error":{"code":"DatasetExecuteQueriesError","pbi.error":{"code":"DatasetExecuteQueriesError","parameters":{},"details":[{"code":"DetailsMessage","detail":{"type":1,"value":"Failed to open the MSOLAP connection."}},{"code":"AnalysisServicesErrorCode","detail":{"type":1,"value":"0"}}]}}}
+
+========== RUN DURATION ==========
+Run duration: 60.05 seconds

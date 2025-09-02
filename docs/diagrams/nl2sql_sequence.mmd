@@ -1,0 +1,34 @@
+sequenceDiagram
+  participant User
+ participant CLI as "nl2sql_main.py"
+ participant Schema as "schema_reader"
+ participant LLM as "AzureChatOpenAI"
+ participant SQL as "sql_executor (pyodbc)"
+
+  User->>CLI: --query "…"
+  CLI->>Schema: get_sql_database_schema_context (TTL)
+  alt --refresh-schema
+    CLI->>Schema: refresh_schema_cache()
+  end
+  CLI->>LLM: Intent prompt
+  LLM-->>CLI: Intent and entities
+
+  opt Reasoning
+    CLI->>LLM: Reasoning prompt
+  LLM-->>CLI: Reasoning text (no SQL)
+    alt --explain-only
+      CLI-->>User: Write banners + reasoning to RESULTS, exit
+    end
+  end
+
+  CLI->>LLM: SQL prompt (schema and intent)
+  LLM-->>CLI: Raw SQL text
+  CLI->>CLI: Extract and sanitize SQL
+
+  alt --no-exec
+    CLI-->>User: Persist output, skip execution
+  else execute
+    CLI->>SQL: execute_sql_query(SQL)
+  SQL-->>CLI: rows (list of dicts)
+  CLI-->>User: Formatted table and saved run log
+  end

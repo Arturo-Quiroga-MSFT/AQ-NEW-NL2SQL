@@ -1,0 +1,49 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+List collateral items valued above 1,000,000 with their types and valuation dates
+
+========== INTENT & ENTITIES ==========
+Intent: ListCollateralItems
+
+Entities:
+- asset_category: “collateral items”
+- value_filter:
+    operator: “>”
+    amount: 1000000
+- return_fields:
+    - “type”
+    - “valuation_date”
+
+========== REFRESHING SCHEMA CACHE ==========
+[INFO] Schema cache refreshed: /Users/arturoquiroga/GITHUB/NL2DAX/AQ-NEW-NL2SQL/DATABASE_SETUP/schema_cache.json
+
+========== SQL GENERATION REASONING ==========
+• Entities mapping  
+  - “collateral items” → dbo.Collateral  
+  - return fields “type” → CollateralType, “valuation_date” → ValuationDate  
+
+• Tables/Joins  
+  - Primary table: dbo.Collateral  
+  - No additional joins needed for requested fields  
+
+• Aggregations  
+  - None  
+
+• Filters  
+  - ValueAmount > 1,000,000  
+  - (Optional) Status = ‘Active’ if only current items are desired  
+
+• Order/Limit  
+  - Order by ValuationDate DESC  
+  - (Optional) TOP N if limiting results  
+
+• Assumptions  
+  - Collateral records use CurrencyCode consistently  
+  - No currency conversion required for ValueAmount filter  
+  - All collateral types should be included unless status filter applied
+
+========== EXPLAIN-ONLY MODE ==========
+Explain-only mode: SQL generation and execution skipped
+
+========== RUN DURATION ==========
+Run duration: 17.04 seconds

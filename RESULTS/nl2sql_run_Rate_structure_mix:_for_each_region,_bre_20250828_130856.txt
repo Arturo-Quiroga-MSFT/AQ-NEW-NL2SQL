@@ -1,0 +1,73 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Rate structure mix: for each region, breakdown of loans by InterestRateType and ReferenceRate with counts and total principal
+
+========== INTENT & ENTITIES ==========
+Intent:
+  GetRateStructureMix
+
+Entities:
+  Dimensions:
+    - Region
+    - InterestRateType
+    - ReferenceRate
+  Metrics:
+    - loan_count
+    - total_principal
+
+========== REFRESHING SCHEMA CACHE ==========
+[INFO] Schema cache refreshed: /Users/arturoquiroga/GITHUB/NL2DAX/AQ-NEW-NL2SQL/DATABASE_SETUP/schema_cache.json
+
+========== SQL GENERATION REASONING ==========
+• Entities mapping  
+  – Region: RegionName from vw_LoanPortfolio  
+  – InterestRateType: InterestRateType from vw_LoanPortfolio  
+  – ReferenceRate: ReferenceRate from vw_LoanPortfolio  
+
+• Tables/Joins  
+  – Primary source: dbo.vw_LoanPortfolio (denormalized view, includes all mapped entities)  
+
+• Aggregations  
+  – loan_count: COUNT(LoanId)  
+  – total_principal: SUM(PrincipalAmount)  
+  – GROUP BY RegionName, InterestRateType, ReferenceRate  
+
+• Filters  
+  – Optional filter for active loans (e.g., Status = 'Active') if focusing on current portfolio  
+
+• Order/Limit  
+  – ORDER BY RegionName, InterestRateType, ReferenceRate  
+  – No explicit LIMIT unless required by client  
+
+• Assumptions  
+  – PrincipalAmount values are in a consistent currency (no conversion)  
+  – Status field indicates loan activity for filtering purposes
+
+========== GENERATED SQL (RAW) ==========
+SELECT  
+    RegionName AS Region,  
+    InterestRateType,  
+    ReferenceRate,  
+    COUNT(*) AS loan_count,  
+    SUM(PrincipalAmount) AS total_principal  
+FROM dbo.vw_LoanPortfolio  
+GROUP BY  
+    RegionName,  
+    InterestRateType,  
+    ReferenceRate  
+ORDER BY  
+    RegionName,  
+    InterestRateType,  
+    ReferenceRate;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Region   | InterestRateType | ReferenceRate | loan_count | total_principal
+---------+------------------+---------------+------------+----------------
+Africa   | Fixed            | None          | 4          | 48000000.00    
+Americas | Floating         | SOFR          | 3          | 60000000.00    
+Asia     | Floating         | SOFR          | 3          | 66000000.00    
+Asia     | Floating         | TONA          | 1          | 22000000.00    
+Europe   | Floating         | EURIBOR       | 4          | 72000000.00    
+
+========== RUN DURATION ==========
+Run duration: 22.83 seconds

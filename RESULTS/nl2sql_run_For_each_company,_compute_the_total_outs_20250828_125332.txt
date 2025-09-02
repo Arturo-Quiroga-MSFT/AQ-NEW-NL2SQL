@@ -1,0 +1,45 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each company, compute the total outstanding principal (sum of Loan.PrincipalAmount)
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "aggregate_calculation",
+  "entities": {
+    "aggregation": "SUM",
+    "measure": {
+      "table": "Loan",
+      "column": "PrincipalAmount"
+    },
+    "group_by": "Company",
+    "alias": "total outstanding principal"
+  }
+}
+
+========== GENERATED SQL (RAW) ==========
+select CompanyName, 
+       sum(PrincipalAmount) as [total outstanding principal]
+from dbo.vw_LoanPortfolio
+group by CompanyName;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+CompanyName              | total outstanding principal
+-------------------------+----------------------------
+Acme Industrial Holdings | 10000000.00                
+Alexandria Textiles Co   | 12000000.00                
+Amsterdam FinTech BV     | 18000000.00                
+Blue Ridge Energy Corp   | 25000000.00                
+Cape Coast Minerals Ltd  | 12000000.00                
+Gaulois Pharma SA        | 18000000.00                
+Lagos Marine Services    | 12000000.00                
+Mumbai InfraTech Ltd     | 22000000.00                
+Nairobi AgriFoods PLC    | 12000000.00                
+Nordwind Logistics GmbH  | 18000000.00                
+Osaka Precision K.K.     | 22000000.00                
+Shanghai GreenChem Co    | 22000000.00                
+Singapore Data Centers   | 22000000.00                
+Thyme Retail Group       | 18000000.00                
+Toronto Health Devices   | 25000000.00                
+
+========== RUN DURATION ==========
+Run duration: 13.89 seconds

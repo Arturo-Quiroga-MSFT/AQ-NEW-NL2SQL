@@ -1,0 +1,47 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Weighted average interest rate by region and currency (weighted by PrincipalAmount)
+
+========== INTENT & ENTITIES ==========
+Intent:
+  CalculateWeightedAverage
+
+Entities:
+  measure:
+    name: InterestRate
+  weight:
+    column: PrincipalAmount
+  group_by:
+    - Region
+    - Currency
+
+========== GENERATED SQL (RAW) ==========
+SELECT
+    RegionName AS Region,
+    CurrencyCode AS Currency,
+    SUM(InterestRatePct * PrincipalAmount) / NULLIF(SUM(PrincipalAmount),0) AS WeightedAvgInterestRatePct
+FROM dbo.vw_LoanPortfolio
+GROUP BY
+    RegionName,
+    CurrencyCode
+ORDER BY
+    RegionName,
+    CurrencyCode;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Region   | Currency | WeightedAvgInterestRatePct
+---------+----------+---------------------------
+Africa   | KES      | 9.500000                  
+Africa   | NGN      | 9.500000                  
+Africa   | USD      | 9.500000                  
+Africa   | ZAR      | 9.500000                  
+Americas | USD      | 6.166666                  
+Asia     | CNY      | 3.900000                  
+Asia     | INR      | 3.900000                  
+Asia     | JPY      | 3.900000                  
+Asia     | USD      | 3.900000                  
+Europe   | EUR      | 4.750000                  
+Europe   | GBP      | 4.750000                  
+
+========== RUN DURATION ==========
+Run duration: 11.48 seconds

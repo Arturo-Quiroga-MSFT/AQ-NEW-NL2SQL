@@ -1,0 +1,51 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Show the 10 most recent loans
+
+========== INTENT & ENTITIES ==========
+Intent: get_recent_loans
+
+Entities:  
+- object: loans  
+- limit: 10  
+- sort_by: date  
+- sort_order: desc
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP 10
+    LoanId,
+    LoanNumber,
+    CompanyName,
+    CountryName,
+    RegionName,
+    OriginationDate,
+    MaturityDate,
+    PrincipalAmount,
+    CurrencyCode,
+    InterestRatePct,
+    InterestRateType,
+    ReferenceRate,
+    SpreadBps,
+    AmortizationType,
+    PaymentFreqMonths,
+    Status,
+    Purpose
+FROM dbo.vw_LoanPortfolio
+ORDER BY OriginationDate DESC;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+LoanId | LoanNumber | CompanyName             | CountryName    | RegionName | OriginationDate | MaturityDate | PrincipalAmount | CurrencyCode | InterestRatePct | InterestRateType | ReferenceRate | SpreadBps | AmortizationType | PaymentFreqMonths | Status | Purpose             
+-------+------------+-------------------------+----------------+------------+-----------------+--------------+-----------------+--------------+-----------------+------------------+---------------+-----------+------------------+-------------------+--------+---------------------
+8      | AS-00001   | Osaka Precision K.K.    | Japan          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | JPY          | 3.900           | Floating         | TONA          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+9      | AS-00002   | Shanghai GreenChem Co   | China          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | CNY          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+10     | AS-00003   | Mumbai InfraTech Ltd    | India          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | INR          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+11     | AS-00004   | Singapore Data Centers  | Singapore      | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | USD          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+4      | EU-00001   | Nordwind Logistics GmbH | Germany        | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+5      | EU-00002   | Gaulois Pharma SA       | France         | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+6      | EU-00003   | Thyme Retail Group      | United Kingdom | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | GBP          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+7      | EU-00004   | Amsterdam FinTech BV    | Netherlands    | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+2      | US-00001   | Blue Ridge Energy Corp  | United States  | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion     
+3      | US-00002   | Toronto Health Devices  | Canada         | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion     
+
+========== RUN DURATION ==========
+Run duration: 13.45 seconds

@@ -1,0 +1,39 @@
+flowchart TD
+  %% Entry
+  A[User NL Question] --> B["CLI parse: --query, --no-exec, --no-reasoning, --explain-only, --refresh-schema"]
+
+  %% Environment
+  subgraph ENV[Environment]
+    E1[".env loaded (AZURE_OPENAI_*, AZURE_SQL_*)"]
+    E2["ODBC Driver 18 installed"]
+  end
+
+  B --> C{--refresh-schema?}
+  C -- yes --> C1["Refresh schema cache: schema_reader.refresh_schema_cache()"]
+  C -- no --> D
+  C1 --> D
+
+  D["get_sql_database_schema_context (TTL 24h default)"] --> E["Intent extraction: LangChain to AzureChatOpenAI"]
+
+  E --> F{Show reasoning?}
+  F -- yes --> G["Reasoning summary (no SQL)"]
+  G --> H{--explain-only?}
+  F -- no --> H
+
+  H -- yes --> XLOG["Persist banners + reasoning: RESULTS/*.txt"] --> Z[Exit]
+  H -- no --> I["SQL generation: Schema-aware prompt to AzureChatOpenAI"]
+
+  I --> J["Extract and sanitize SQL"]
+  J --> K{--no-exec?}
+  K -- yes --> XLOG
+  K -- no --> L["Execute SQL via pyodbc: sql_executor.execute_sql_query()"]
+  L --> M["Format table output"]
+  M --> XLOG
+
+  subgraph ARTIFACTS[Artifacts]
+    XLOG["Write full run log: AQ-NEW-NL2SQL/RESULTS/..."]
+    C1
+  end
+
+  %% Errors
+  L -. error .-> ER["Print error banner: persist to RESULTS"] --> Z

@@ -1,0 +1,65 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.history/
+*.code-workspace
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+
+# Packaging / build
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.hypothesis/
+htmlcov/
+coverage.xml
+
+# Type checkers / linters
+.mypy_cache/
+.pytype/
+.pyright/
+.pyre/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs and local data
+logs/
+*.log
+
+# --- Environment and Secrets ---
+# Never commit real env files. Keep the example file tracked.
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# --- App-specific (optional) ---
+# Uncomment to avoid committing generated run outputs
+# RESULTS/
+# RESULTS/*.txt

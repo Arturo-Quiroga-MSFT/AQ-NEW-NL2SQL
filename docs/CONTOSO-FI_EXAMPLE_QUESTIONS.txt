@@ -1,0 +1,32 @@
+EASY
+-----
+1) Show the 10 most recent loans by OriginationDate.
+2) List loans maturing this year with their principal amounts and status.
+3) Find all companies in the “Manufacturing” industry with their credit ratings.
+4) 
+5) List collateral items valued above 1,000,000 with their types and valuation dates.
+6) Show the upcoming payment schedule entries (next 30 days) with LoanNumber and TotalDue.
+7) List all currencies and symbols used in the system.
+8) Show companies founded before 1990 with more than 1000 employees.
+
+MEDIUM
+-------
+1) For each company, compute the total outstanding principal (sum of Loan.PrincipalAmount).
+2) Average interest rate by industry and region (loan-level metrics joined through company→country→region).
+3) Count of loans by status per country.
+4) Total collateral value per loan and the associated company name.
+5) Number of covenant test results per covenant type in the last 12 months.
+6) Average time to maturity (in days) by industry for loans originated in the last 5 years.
+7) For each region, list the top 5 companies by total principal amount.
+8) Payment performance: count of paid vs unpaid PaymentSchedule entries in the last quarter.
+
+COMPLICATED
+------------
+1) For each loan, compute the remaining balance trajectory from PaymentSchedule (StartingPrincipal vs EndingPrincipal) and identify loans with increasing EndingPrincipal month-over-month.
+2) Covenant compliance rate: percentage of covenant tests with Status = “Pass” by industry and quarter over the last 2 years.
+3) Weighted average interest rate by region and currency (weighted by PrincipalAmount).
+4) Identify loans with upcoming covenant tests due (based on Frequency and LastTestDate) in the next 60 days, grouped by company.
+5) Payment timing analysis: average days between DueDate and PaidDate by company and quarter; show those above a 15-day threshold.
+6) Rate structure mix: for each region, breakdown of loans by InterestRateType and ReferenceRate with counts and total principal.
+7) Collateral coverage ratio: for each loan, compute sum(collateral value) / principal; list loans with coverage ratio < 1.2 and maturity in the next 6 months.
+8) Rolling 12-month origination trend: monthly count and sum of new loans, with 3-month moving averages, by region.
