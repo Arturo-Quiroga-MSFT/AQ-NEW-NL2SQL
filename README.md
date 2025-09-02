@@ -149,3 +149,49 @@ When generating or executing T-SQL from applications/drivers (ODBC/pyodbc), keep
 - USE to change database context isn’t appropriate for Azure SQL Database app queries. Connect directly to the target database with the right connection string. For cross-database scenarios consider [Elastic query](https://learn.microsoft.com/azure/azure-sql/database/elastic-query-overview?view=azuresql) or use Azure SQL Managed Instance if you need wider cross-DB features. See T‑SQL differences: https://learn.microsoft.com/azure/azure-sql/database/transact-sql-tsql-differences-sql-server?view=azuresql
 - This repo’s demo notebook and script already guard against empty or non‑SELECT SQL to avoid driver errors; keep prompts focused on single, executable queries.
 
+## Token usage and cost reporting
+
+At the end of each run, the CLI prints token counts and, when pricing is configured, an estimated USD cost for the run. It includes:
+
+- Input tokens (prompt)
+- Completion tokens (output)
+- Total tokens
+- Estimated cost (input + output)
+
+Configure the per‑1K token prices using one of the following methods:
+
+1) Deployment‑specific environment variables
+
+- `AZURE_OPENAI_PRICE_<DEPLOYMENT_NAME>_INPUT_PER_1K`
+- `AZURE_OPENAI_PRICE_<DEPLOYMENT_NAME>_OUTPUT_PER_1K`
+
+Example for `AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o`:
+
+```bash
+export AZURE_OPENAI_PRICE_GPT_4O_INPUT_PER_1K=<current_input_price_usd>
+export AZURE_OPENAI_PRICE_GPT_4O_OUTPUT_PER_1K=<current_output_price_usd>
+```
+
+2) Global environment variables (fallback used if no deployment‑specific values are set)
+
+- `AZURE_OPENAI_PRICE_INPUT_PER_1K`
+- `AZURE_OPENAI_PRICE_OUTPUT_PER_1K`
+
+3) Optional JSON file at repo root: `azure_openai_pricing.json`
+
+```json
+{
+  "gpt-4o": { "input_per_1k": 2.50, "output_per_1k": 10.00 },
+  "gpt-4o-mini": { "input_per_1k": 0.15, "output_per_1k": 0.60 }
+}
+```
+
+Notes:
+
+- Always source the latest numbers from the official Azure OpenAI pricing page. Prices vary by Global/Data Zone/Regional deployments and may change over time.
+- If pricing isn’t configured, the script still prints token counts with a quick hint on how to enable cost calculation.
+
+Reference: Azure OpenAI pricing
+
+- https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/
+
