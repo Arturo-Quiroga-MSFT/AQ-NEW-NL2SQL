@@ -132,3 +132,11 @@ End-to-end NL→SQL flowchart (generated from `docs/diagrams/nl2sql_flowchart.mm
   
 </p>
 
+### Diagram legend (flags → decision boxes)
+
+- Decision: Refresh schema? → Use `--refresh-schema`
+- Decision: Show reasoning plan? → Omit `--no-reasoning` (add it to skip)
+- Decision: Only explain (no SQL/no exec)? → Use `--explain-only`
+- Decision: Execute SQL? → Omit `--no-exec` (add it to skip execution)
+- Input source: Prompt vs inline → Use `--query "..."` to provide the question
+
