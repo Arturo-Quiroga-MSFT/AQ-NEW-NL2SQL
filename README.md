@@ -75,6 +75,35 @@ python AQ-NEW-NL2SQL/nl2sql_main.py --query "Average balance per customer" --no-
 
 Output logs will be written in this folder as `nl2sql_run_<query>_<timestamp>.txt`.
 
+## How to run with decision flags (matches the flowchart)
+
+Use these flags to control the decision points shown in the NL→SQL flow:
+
+- --refresh-schema: Refresh the cached DB schema before generation (ensures up-to-date context)
+- --no-reasoning: Skip the optional “SQL Generation Reasoning” step
+- --explain-only: Print only Intent & Entities and the Reasoning summary; skip SQL generation and execution
+- --no-exec: Generate SQL but do not execute it against the database
+- --query "...": Provide the natural language question inline (otherwise you’ll be prompted)
+
+Examples
+
+```bash
+# Full run (default): Intent → Reasoning → SQL → Execute
+python nl2sql_main.py --query "Show the 10 most recent loans"
+
+# Refresh schema first, then run end-to-end
+python nl2sql_main.py --query "Weighted average interest rate by region" --refresh-schema
+
+# Reasoning only (no SQL produced, no execution)
+python nl2sql_main.py --query "List collateral items valued above 1,000" --explain-only
+
+# Generate SQL but skip execution
+python nl2sql_main.py --query "For each company, compute the total outs" --no-exec
+
+# Faster run without the reasoning summary
+python nl2sql_main.py --query "For each region, list the top 5 companies by balance" --no-reasoning
+```
+
 ## Components
 
 - `nl2sql_main.py`: CLI entrypoint that:
