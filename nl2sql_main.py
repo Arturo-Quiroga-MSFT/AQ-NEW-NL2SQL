@@ -84,6 +84,7 @@ def _make_llm():
         azure_endpoint=ENDPOINT,
         deployment_name=DEPLOYMENT_NAME,
         api_version=API_VERSION,
+        max_tokens=8192,
     )
 
 
@@ -146,7 +147,7 @@ def parse_nl_query(user_input: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-        return _azure_chat_completions(messages, max_completion_tokens=800)
+    return _azure_chat_completions(messages, max_completion_tokens=8192)
     chain = intent_prompt | llm  # type: ignore[arg-type]
     res = chain.invoke({"input": user_input})
     return res.content
@@ -226,7 +227,7 @@ def generate_sql(intent_entities: str) -> str:
         messages = [
             {"role": "user", "content": prompt_text.strip()},
         ]
-        return _azure_chat_completions(messages, max_completion_tokens=1200)
+    return _azure_chat_completions(messages, max_completion_tokens=8192)
     chain = sql_prompt | llm  # type: ignore[arg-type]
     result = chain.invoke({"schema": schema, "intent_entities": intent_entities})
     return result.content
@@ -242,7 +243,7 @@ def generate_reasoning(intent_entities: str) -> str:
             messages = [
                 {"role": "user", "content": prompt_text.strip()},
             ]
-            return _azure_chat_completions(messages, max_completion_tokens=600)
+            return _azure_chat_completions(messages, max_completion_tokens=8192)
         chain = reasoning_prompt | llm  # type: ignore[arg-type]
         res = chain.invoke({"schema": schema, "intent_entities": intent_entities})
         return res.content

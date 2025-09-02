@@ -1,4 +1,3 @@
-
 """
 main.py - NL2DAX & NL2SQL Pipeline Entrypoint
 =============================================
@@ -181,7 +180,8 @@ llm = AzureChatOpenAI(
     openai_api_key=API_KEY,           # Authenticate with Azure OpenAI service
     azure_endpoint=ENDPOINT,          # Target the correct Azure OpenAI instance
     deployment_name=DEPLOYMENT_NAME,  # Use the specified model deployment
-    api_version=API_VERSION           # API version controlled via env var
+    api_version=API_VERSION,          # API version controlled via env var
+    max_tokens=8192                   # Set maximum completion tokens
 )
 
 

@@ -140,3 +140,12 @@ End-to-end NL→SQL flowchart (generated from `docs/diagrams/nl2sql_flowchart.mm
 - Decision: Execute SQL? → Omit `--no-exec` (add it to skip execution)
 - Input source: Prompt vs inline → Use `--query "..."` to provide the question
 
+
+## Azure SQL tips: USE and GO
+
+When generating or executing T-SQL from applications/drivers (ODBC/pyodbc), keep these Azure SQL specifics in mind:
+
+- GO isn’t T‑SQL. It’s a client tool batch separator (for SSMS/sqlcmd). Don’t include `GO` in SQL you send via drivers; split batches into separate commands instead. See: https://learn.microsoft.com/sql/t-sql/language-elements/sql-server-utilities-statements-go
+- USE to change database context isn’t appropriate for Azure SQL Database app queries. Connect directly to the target database with the right connection string. For cross-database scenarios consider [Elastic query](https://learn.microsoft.com/azure/azure-sql/database/elastic-query-overview?view=azuresql) or use Azure SQL Managed Instance if you need wider cross-DB features. See T‑SQL differences: https://learn.microsoft.com/azure/azure-sql/database/transact-sql-tsql-differences-sql-server?view=azuresql
+- This repo’s demo notebook and script already guard against empty or non‑SELECT SQL to avoid driver errors; keep prompts focused on single, executable queries.
+
