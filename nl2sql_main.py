@@ -27,6 +27,8 @@ import os
 import re
 import sys
 import time
+import json
+from typing import List, Dict, Any
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -41,35 +43,47 @@ API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
-# Initialize LLM (chat completion)
-llm = AzureChatOpenAI(
-    openai_api_key=API_KEY,
-    azure_endpoint=ENDPOINT,
-    deployment_name=DEPLOYMENT_NAME,
-    api_version="2024-12-01-preview",
-)
+# Note on o-series/gpt-5 models: According to Azure documentation, reasoning models (o-series and gpt-5)
+# do NOT support temperature/top_p/presence_penalty/frequency_penalty with Chat Completions.
+# Ref: https://learn.microsoft.com/azure/ai-foundry/openai/how-to/reasoning#api-&-feature-support
 
+# Helper: detect o-series and gpt-5 deployments which do not support temperature/top_p
+def _is_reasoning_like_model(deployment_name: str | None) -> bool:
+    name = (deployment_name or "").lower()
+    return name.startswith("o") or name.startswith("gpt-5")
+
+
+_USING_REASONING_STYLE = _is_reasoning_like_model(DEPLOYMENT_NAME)
+
+
+def _make_llm():
+    """Create an LLM instance.
+
+    For o-series/gpt-5 deployments, we avoid LangChain defaults that send temperature by
+    using a direct HTTP call path elsewhere. For non-o-series, use LangChain AzureChatOpenAI.
+    """
+    if _USING_REASONING_STYLE:
+        return None  # We'll use direct Azure Chat Completions calls without temperature
+    return AzureChatOpenAI(
+        openai_api_key=API_KEY,
+        azure_endpoint=ENDPOINT,
+        deployment_name=DEPLOYMENT_NAME,
+        api_version="2024-12-01-preview",
+    )
+
+
+llm = _make_llm()
 
 # ---------- Prompt setup ----------
 
-# Intent extraction (NL -> structured intent/entities)
-intent_prompt = ChatPromptTemplate.from_template(
+# Shared prompt text constants (reused for direct API calls)
+INTENT_PROMPT_TEXT = (
     """
     You are an expert in translating natural language to database queries. Extract the intent and entities from the following user input:
     {input}
     """
 )
-
-
-def parse_nl_query(user_input: str) -> str:
-    """Run the intent extraction chain and return the structured intent/entities."""
-    chain = intent_prompt | llm
-    res = chain.invoke({"input": user_input})
-    return res.content
-
-
-# SQL prompt (schema-aware)
-sql_prompt = ChatPromptTemplate.from_template(
+SQL_PROMPT_TEXT = (
     """
     You are an expert in SQL and Azure SQL Database. Given the following database schema and the intent/entities, generate a valid T-SQL query for querying the database.
 
@@ -87,10 +101,7 @@ sql_prompt = ChatPromptTemplate.from_template(
     Generate a T-SQL query that can be executed directly:
     """
 )
-
-
-# Reasoning prompt (high-level plan before SQL)
-reasoning_prompt = ChatPromptTemplate.from_template(
+REASONING_PROMPT_TEXT = (
     """
     You are assisting with SQL generation. Before writing SQL, produce a short, high-level reasoning summary
     for how you will construct the query, based on the schema and the intent/entities.
@@ -108,6 +119,51 @@ reasoning_prompt = ChatPromptTemplate.from_template(
     Provide the reasoning summary now:
     """
 )
+
+# Templates for LangChain path
+intent_prompt = ChatPromptTemplate.from_template(INTENT_PROMPT_TEXT)
+
+
+def parse_nl_query(user_input: str) -> str:
+    """Run the intent extraction chain and return the structured intent/entities."""
+    if _USING_REASONING_STYLE:
+        prompt_text = INTENT_PROMPT_TEXT.format(input=user_input)
+        messages = [
+            {"role": "user", "content": prompt_text.strip()},
+        ]
+        return _azure_chat_completions(messages, max_completion_tokens=800)
+    chain = intent_prompt | llm  # type: ignore[arg-type]
+    res = chain.invoke({"input": user_input})
+    return res.content
+
+
+# SQL prompt (schema-aware)
+sql_prompt = ChatPromptTemplate.from_template(SQL_PROMPT_TEXT)
+
+
+# Reasoning prompt (high-level plan before SQL)
+reasoning_prompt = ChatPromptTemplate.from_template(REASONING_PROMPT_TEXT)
+
+
+# ---------- Direct Azure Chat Completions for o-series / gpt-5 ----------
+
+def _azure_chat_completions(messages: List[Dict[str, Any]], max_completion_tokens: int | None = None) -> str:
+    """Call Azure OpenAI Chat Completions API directly without temperature/top_p for o-series/gpt-5.
+
+    Docs: Azure reasoning models (o-series) do NOT support temperature/top_p/presence_penalty/frequency_penalty.
+    See: https://learn.microsoft.com/azure/ai-foundry/openai/how-to/reasoning#api-&-feature-support
+    """
+    import requests  # lazy import
+
+    url = f"{ENDPOINT.rstrip('/')}/openai/deployments/{DEPLOYMENT_NAME}/chat/completions?api-version=2024-12-01-preview"
+    payload: Dict[str, Any] = {"messages": messages}
+    if max_completion_tokens is not None:
+        payload["max_completion_tokens"] = max_completion_tokens
+    headers = {"api-key": API_KEY or "", "Content-Type": "application/json"}
+    resp = requests.post(url, headers=headers, json=payload, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
 
 
 def _safe_import_schema_reader():
@@ -154,7 +210,13 @@ def generate_sql(intent_entities: str) -> str:
     """Generate a SQL query from structured intent/entities with schema context."""
     get_schema_ctx = _safe_import_schema_reader()
     schema = get_schema_ctx()
-    chain = sql_prompt | llm
+    if _USING_REASONING_STYLE:
+        prompt_text = SQL_PROMPT_TEXT.format(schema=schema, intent_entities=intent_entities)
+        messages = [
+            {"role": "user", "content": prompt_text.strip()},
+        ]
+        return _azure_chat_completions(messages, max_completion_tokens=1200)
+    chain = sql_prompt | llm  # type: ignore[arg-type]
     result = chain.invoke({"schema": schema, "intent_entities": intent_entities})
     return result.content
 
@@ -164,7 +226,13 @@ def generate_reasoning(intent_entities: str) -> str:
     try:
         get_schema_ctx = _safe_import_schema_reader()
         schema = get_schema_ctx()
-        chain = reasoning_prompt | llm
+        if _USING_REASONING_STYLE:
+            prompt_text = REASONING_PROMPT_TEXT.format(schema=schema, intent_entities=intent_entities)
+            messages = [
+                {"role": "user", "content": prompt_text.strip()},
+            ]
+            return _azure_chat_completions(messages, max_completion_tokens=600)
+        chain = reasoning_prompt | llm  # type: ignore[arg-type]
         res = chain.invoke({"schema": schema, "intent_entities": intent_entities})
         return res.content
     except Exception as e:
