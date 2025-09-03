@@ -1,0 +1,102 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each loan, compute the remaining balance trajectory from PaymentSchedule (StartingPrincipal vs EndingPrincipal) and identify loans with increasing EndingPrincipal month-over-month.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Compute the remaining balance trajectory per loan and flag loans where EndingPrincipal increases month-over-month.",
+  "entities": {
+    "domain_objects": ["loan"],
+    "tables": ["PaymentSchedule"],
+    "columns": [
+      "StartingPrincipal",
+      "EndingPrincipal",
+      "LoanId",
+      "ScheduleMonth"  // or PaymentDate/ScheduleDate/Period
+    ],
+    "time_grain": "month"
+  },
+  "metrics": [
+    {
+      "name": "remaining_balance",
+      "definition": "EndingPrincipal"
+    },
+    {
+      "name": "ending_principal_mom_change",
+      "definition": "EndingPrincipal - LAG(EndingPrincipal) OVER (PARTITION BY LoanId ORDER BY ScheduleMonth)"
+    },
+    {
+      "name": "increasing_flag",
+      "definition": "ending_principal_mom_change > 0"
+    }
+  ],
+  "group_by": ["LoanId", "ScheduleMonth"],
+  "filters": [],
+  "identify_condition": "EndingPrincipal(current month) > EndingPrincipal(previous month)",
+  "desired_outputs": [
+    "Per-loan monthly series of StartingPrincipal and EndingPrincipal",
+    "List (or flag) of loans and months where EndingPrincipal increased MoM"
+  ],
+  "assumptions": [
+    "PaymentSchedule has one row per loan per month.",
+    "LoanId and a monthly schedule date column exist (names may vary: ScheduleMonth/PaymentDate)."
+  ]
+}
+
+========== GENERATED SQL (RAW) ==========
+WITH ps AS (
+    SELECT
+        ps.LoanId,
+        lp.LoanNumber,
+        lp.CompanyName,
+        CAST(DATEFROMPARTS(YEAR(ps.DueDate), MONTH(ps.DueDate), 1) AS date) AS ScheduleMonth,
+        ps.DueDate,
+        ps.PaymentNumber,
+        ps.CurrencyCode,
+        ps.StartingPrincipal,
+        CAST(ps.StartingPrincipal - ISNULL(ps.PrincipalDue, 0) AS decimal(38,4)) AS EndingPrincipal
+    FROM dbo.PaymentSchedule ps
+    INNER JOIN dbo.vw_LoanPortfolio lp
+        ON lp.LoanId = ps.LoanId
+),
+calc AS (
+    SELECT
+        LoanId,
+        LoanNumber,
+        CompanyName,
+        ScheduleMonth,
+        DueDate,
+        PaymentNumber,
+        CurrencyCode,
+        StartingPrincipal,
+        EndingPrincipal,
+        LAG(EndingPrincipal) OVER (
+            PARTITION BY LoanId
+            ORDER BY ScheduleMonth, PaymentNumber, DueDate
+        ) AS PrevEndingPrincipal
+    FROM ps
+)
+SELECT
+    LoanId,
+    LoanNumber,
+    CompanyName,
+    ScheduleMonth,
+    StartingPrincipal,
+    EndingPrincipal,
+    PrevEndingPrincipal,
+    EndingPrincipal - PrevEndingPrincipal AS ending_principal_mom_change,
+    CASE WHEN (EndingPrincipal - PrevEndingPrincipal) > 0 THEN 1 ELSE 0 END AS increasing_flag
+FROM calc
+ORDER BY LoanId, ScheduleMonth, PaymentNumber, DueDate;
+
+========== SQL QUERY ERROR ==========
+[ERROR] Failed to execute SQL query: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'arturoqu'. Reason: Azure Active Directory only authentication is enabled. Please contact your system administrator. (18456) (SQLDriverConnect)")
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1455
+Completion tokens: 3964
+Total tokens: 5419
+Estimated cost (USD): 0.041459  [input=0.001819, output=0.039640; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 42.98 seconds

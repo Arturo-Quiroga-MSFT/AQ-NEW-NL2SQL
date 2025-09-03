@@ -1,0 +1,75 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+ Payment timing analysis: average days between DueDate and PaidDate by company and by calendar quarter (paid entries only).
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Analyze payment timing by computing the average number of days between DueDate and PaidDate, grouped by company and calendar quarter, limited to paid entries only.",
+  "entities": {
+    "metrics": [
+      {
+        "name": "avg_days_between_due_and_paid",
+        "expression": "AVG(DATEDIFF(day, DueDate, PaidDate))"
+      }
+    ],
+    "dimensions": [
+      {
+        "name": "company"
+      },
+      {
+        "name": "calendar_quarter",
+        "derived_from": "PaidDate",
+        "note": "Quarter is based on PaidDate to reflect paid entries by quarter."
+      }
+    ],
+    "filters": [
+      {
+        "field": "PaidDate",
+        "operator": "IS NOT NULL",
+        "value": null,
+        "reason": "paid entries only"
+      }
+    ],
+    "source_fields": [
+      "DueDate",
+      "PaidDate",
+      "Company"
+    ],
+    "group_by": [
+      "Company",
+      "calendar_quarter(PaidDate)"
+    ],
+    "time_grain": "quarter",
+    "time_dimension": "PaidDate"
+  }
+}
+
+========== GENERATED SQL (RAW) ==========
+SELECT
+  lp.CompanyName,
+  DATEPART(YEAR, ps.PaidDate) AS PaidYear,
+  DATEPART(QUARTER, ps.PaidDate) AS PaidQuarter,
+  AVG(CAST(DATEDIFF(DAY, ps.DueDate, ps.PaidDate) AS decimal(10,2))) AS AvgDaysBetweenDueAndPaid
+FROM dbo.PaymentSchedule AS ps
+JOIN dbo.vw_LoanPortfolio AS lp
+  ON ps.LoanId = lp.LoanId
+WHERE ps.PaidDate IS NOT NULL
+GROUP BY
+  lp.CompanyName,
+  DATEPART(YEAR, ps.PaidDate),
+  DATEPART(QUARTER, ps.PaidDate)
+ORDER BY
+  lp.CompanyName,
+  PaidYear,
+  PaidQuarter;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1384
+Completion tokens: 2923
+Total tokens: 4307
+Estimated cost (USD): 0.030960  [input=0.001730, output=0.029230; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 31.61 seconds

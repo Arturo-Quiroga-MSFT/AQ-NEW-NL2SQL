@@ -1,40 +1,43 @@
+UPDATED (2025-09-03)
+Curated questions designed to consistently return rows based on available schema and typical seed data. Prompts favor broad time ranges, top-N selections, and aggregates to avoid empty results during demos.
+
 EASY
 -----
 1) Show the 10 most recent loans by OriginationDate.
-2) List loans maturing this year with their principal amounts and status.
-3) Find all companies in the “Manufacturing” industry with their credit ratings.
-4) 
-5) List collateral items valued above 1,000,000 with their types and valuation dates.
-6) Show the upcoming payment schedule entries (next 30 days) with LoanNumber and TotalDue.
-7) List all currencies and symbols used in the system.
-8) Show companies founded before 1990 with more than 1000 employees.
+2) Show the 10 upcoming loan maturities (soonest MaturityDate first) with principal amount and status.
+3) List 20 companies with their industry and credit rating.
+4) List 20 collateral items with type, value, valuation date, and the related LoanNumber.
+5) Show 20 payment schedule entries (earliest DueDate first) with LoanNumber, PaymentNumber, and TotalDue.
+6) List all currencies and their symbols available in the system.
+7) Show 20 covenants with covenant type, threshold, frequency, and status.
+8) Show 20 covenant test results with test date, status, observed value, and the related covenant type.
 
 MEDIUM
 -------
-1) For each company, compute the total outstanding principal (sum of Loan.PrincipalAmount).
-2) Average interest rate by industry and region (loan-level metrics joined through company→country→region).
-3) Count of loans by status per country.
-4) Total collateral value per loan and the associated company name.
-5) Number of covenant test results per covenant type in the last 12 months.
-6) Average time to maturity (in days) by industry for loans originated in the last 5 years.
+1) For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+2) Average interest rate by industry and region (join Loan → Company → Country → Region).
+3) Count of loans by status per country (join Loan → Company → Country).
+4) Total collateral value per loan with the associated company name; show the top 20 by total collateral value.
+5) Number of covenant test results per covenant type (all-time).
+6) Average days to maturity by industry (for loans with non-null OriginationDate and MaturityDate).
 7) For each region, list the top 5 companies by total principal amount.
-8) Payment performance: count of paid vs unpaid PaymentSchedule entries in the last quarter.
+8) Payment performance overview: counts of Paid vs. Unpaid payment schedule entries (all-time).
 
 COMPLICATED
 ------------
-1) For each loan, compute the remaining balance trajectory from PaymentSchedule (StartingPrincipal vs EndingPrincipal) and identify loans with increasing EndingPrincipal month-over-month.
-2) Covenant compliance rate: percentage of covenant tests with Status = “Pass” by industry and quarter over the last 2 years.
+1) For each loan, compute month-over-month change in EndingPrincipal from PaymentSchedule; show 20 loans with the largest absolute change (include positive/negative flags).
+2) Covenant compliance rate by industry: percentage of covenant tests with Status = "Pass" (all-time), grouped by industry and calendar quarter.
 3) Weighted average interest rate by region and currency (weighted by PrincipalAmount).
-4) Identify loans with upcoming covenant tests due (based on Frequency and LastTestDate) in the next 60 days, grouped by company.
-5) Payment timing analysis: average days between DueDate and PaidDate by company and quarter; show those above a 15-day threshold.
-6) Rate structure mix: for each region, breakdown of loans by InterestRateType and ReferenceRate with counts and total principal.
-7) Collateral coverage ratio: for each loan, compute sum(collateral value) / principal; list loans with coverage ratio < 1.2 and maturity in the next 6 months.
-8) Rolling 12-month origination trend: monthly count and sum of new loans, with 3-month moving averages, by region.
+4) Covenant schedules: list the next 20 upcoming covenant test due dates with the company and covenant type (earliest TestDueDate first).
+5) Payment timing analysis: average days between DueDate and PaidDate by company and by calendar quarter (paid entries only).
+6) Rate structure mix by region: counts and total principal by InterestRateType and ReferenceRate.
+7) Collateral coverage ratio per loan = sum(collateral value) / principal; show the top 50 loans by coverage ratio and flag those below 1.2.
+8) Origination trend by region: monthly count and sum of new loans across all available years, with a 3-month moving average per region.
 
 STRESS (ADVANCED SQL)
 ----------------------
-1) For each region, show the top 3 companies by 12-month rolling average outstanding balance (as of the latest month), including each company’s share of its region’s total.
-2) For the last 6 months, by region and month, break down loans into 0–29, 30–59, 60–89, and 90+ days past due buckets, and show each bucket’s percentage of total, plus the month-over-month change.
-3) For the most recent quarter, compute the weighted average interest rate by LTV bucket (e.g., <50%, 50–70%, 70–80%, >80%) and collateral type, and present the LTV buckets as columns.
-4) For the latest month by region and product, show the mix of fixed vs. variable rate loans (counts and percentages) and the month-over-month percentage point change for each category.
-5) By region, list the top 10 companies by total outstanding balance among loans with LTV > 80%, show each company’s share of the regional total, and include an ‘Others’ row aggregating the remainder.
+1) As-of-balance: for each region, using the latest available DueDate per loan from PaymentSchedule, sum EndingPrincipal by company and show the top 3 companies per region with each company’s share of the region total.
+2) Delinquency buckets by month and region: using PaymentEvent, bucket DaysDelinquent into 0–29, 30–59, 60–89, and 90+ and show, for the 6 most recent months in the data, each bucket’s percentage of total per region.
+3) Coverage-bucket rates: for the most recent year in the data, compute weighted average interest rate by collateral coverage ratio bucket (<50%, 50–70%, 70–80%, >80%) and collateral type.
+4) For the latest month in the data, by region and loan purpose, show the mix of fixed vs variable rate loans (counts and percentages) and the month-over-month percentage point change.
+5) By region, list the top 10 companies by estimated outstanding balance (using latest EndingPrincipal per loan), show each company’s share of the regional total, and include an "Others" row aggregating the remainder.

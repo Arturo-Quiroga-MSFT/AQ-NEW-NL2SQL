@@ -1,0 +1,73 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+Total collateral value per loan with the associated company name; show the top 20 by total collateral value.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Retrieve the top 20 loans ranked by total collateral value, including the associated company name for each loan.",
+  "entities": {
+    "objects": ["Loan", "Company", "Collateral"],
+    "dimensions": [
+      {"name": "loan_id", "description": "Identifier for the loan"},
+      {"name": "company_name", "description": "Name of the company associated with the loan"}
+    ],
+    "metrics": [
+      {
+        "name": "total_collateral_value",
+        "aggregation": "SUM",
+        "source_field": "collateral_value",
+        "description": "Sum of collateral values linked to each loan"
+      }
+    ],
+    "group_by": ["loan_id", "company_name"],
+    "order_by": [
+      {"field": "total_collateral_value", "direction": "DESC"}
+    ],
+    "limit": 20,
+    "filters": []
+  }
+}
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP (20)
+    p.LoanId,
+    p.CompanyName,
+    COALESCE(c.TotalCollateralValue, 0) AS TotalCollateralValue
+FROM dbo.vw_LoanPortfolio AS p
+LEFT JOIN (
+    SELECT
+        LoanId,
+        SUM(ISNULL(ValueAmount, 0)) AS TotalCollateralValue
+    FROM dbo.Collateral
+    GROUP BY LoanId
+) AS c
+    ON c.LoanId = p.LoanId
+ORDER BY COALESCE(c.TotalCollateralValue, 0) DESC
+
+========== SQL QUERY RESULTS (TABLE) ==========
+LoanId | CompanyName              | TotalCollateralValue
+-------+--------------------------+---------------------
+3      | Toronto Health Devices   | 45000000.00         
+9      | Shanghai GreenChem Co    | 36300000.00         
+2      | Blue Ridge Energy Corp   | 32500000.00         
+6      | Thyme Retail Group       | 32400000.00         
+8      | Osaka Precision K.K.     | 25300000.00         
+10     | Mumbai InfraTech Ltd     | 25300000.00         
+11     | Singapore Data Centers   | 25300000.00         
+7      | Amsterdam FinTech BV     | 23400000.00         
+5      | Gaulois Pharma SA        | 23400000.00         
+4      | Nordwind Logistics GmbH  | 23400000.00         
+12     | Cape Coast Minerals Ltd  | 19800000.00         
+15     | Alexandria Textiles Co   | 19800000.00         
+14     | Nairobi AgriFoods PLC    | 13800000.00         
+13     | Lagos Marine Services    | 13800000.00         
+1      | Acme Industrial Holdings | 13000000.00         
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1329
+Completion tokens: 2628
+Total tokens: 3957
+Estimated cost (USD): 0.027941  [input=0.001661, output=0.026280; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 29.26 seconds

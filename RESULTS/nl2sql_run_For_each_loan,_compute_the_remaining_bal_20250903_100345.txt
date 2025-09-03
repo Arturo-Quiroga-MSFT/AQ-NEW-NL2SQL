@@ -1,0 +1,70 @@
+
+========== NATURAL LANGUAGE QUERY ==========
+For each loan, compute the remaining balance trajectory from PaymentSchedule (StartingPrincipal vs EndingPrincipal) and identify loans with increasing EndingPrincipal month-over-month.
+
+========== INTENT & ENTITIES ==========
+Intent:
+- For each loan, build a time-series (trajectory) of remaining balance from PaymentSchedule using StartingPrincipal and EndingPrincipal, and identify loans where EndingPrincipal increases compared to the prior month (month-over-month).
+
+Entities:
+- Table: PaymentSchedule
+- Columns: StartingPrincipal, EndingPrincipal
+- Loan identifier: LoanId (exact column name not specified; assumed)
+- Time/ordering column for MoM: a monthly period or date column (e.g., PaymentDate, PeriodMonth; not specified, required for MoM)
+- Derived metrics:
+  - EndingPrincipal_MoM_Change = EndingPrincipal - prior month’s EndingPrincipal
+  - Increasing_Flag = EndingPrincipal_MoM_Change > 0
+- Operations:
+  - Partition by LoanId
+  - Order by monthly period/date
+  - Use LAG on EndingPrincipal to compute MoM change
+  - Identify/return loans (and optionally periods) where Increasing_Flag is true
+
+========== GENERATED SQL (RAW) ==========
+WITH TimeSeries AS (
+    SELECT
+        lp.LoanId,
+        lp.LoanNumber,
+        lp.CompanyName,
+        lp.CurrencyCode,
+        DATEFROMPARTS(YEAR(ps.DueDate), MONTH(ps.DueDate), 1) AS PeriodMonth,
+        ps.PaymentNumber,
+        ps.DueDate,
+        ps.StartingPrincipal,
+        ps.EndingPrincipal,
+        LAG(ps.EndingPrincipal) OVER (
+            PARTITION BY ps.LoanId
+            ORDER BY DATEFROMPARTS(YEAR(ps.DueDate), MONTH(ps.DueDate), 1), ps.PaymentNumber
+        ) AS Prior_EndingPrincipal
+    FROM dbo.PaymentSchedule ps
+    INNER JOIN dbo.vw_LoanPortfolio lp
+        ON lp.LoanId = ps.LoanId
+)
+SELECT
+    LoanId,
+    LoanNumber,
+    CompanyName,
+    CurrencyCode,
+    PeriodMonth,
+    PaymentNumber,
+    DueDate,
+    StartingPrincipal,
+    EndingPrincipal,
+    Prior_EndingPrincipal,
+    (EndingPrincipal - Prior_EndingPrincipal) AS EndingPrincipal_MoM_Change,
+    CASE WHEN (EndingPrincipal - Prior_EndingPrincipal) > 0 THEN 1 ELSE 0 END AS Increasing_Flag
+FROM TimeSeries
+WHERE Prior_EndingPrincipal IS NOT NULL
+  AND (EndingPrincipal - Prior_EndingPrincipal) > 0
+ORDER BY LoanId, PeriodMonth, PaymentNumber;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1343
+Completion tokens: 3774
+Total tokens: 5117
+Estimated cost (USD): 0.039419  [input=0.001679, output=0.037740; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 44.08 seconds
