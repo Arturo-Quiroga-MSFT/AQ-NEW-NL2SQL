@@ -338,6 +338,8 @@ if run_clicked:
         ]
     blob_url = None
     blob_error = None
+    BLOB_CONTAINER = "nl2sql"
+    STORAGE_ACCOUNT = "r2d2nl2sql"
     try:
         txt_path = os.path.join(results_dir, out_filename)
         with open(txt_path, "w") as f:
@@ -353,8 +355,6 @@ if run_clicked:
             sidecar_msg = f"; JSON rows written to RESULTS/{json_name}"
         # Upload to Azure Blob Storage if possible
         AZURE_BLOB_CONN = os.getenv("AZURE_BLOB_CONNECTION_STRING")
-    BLOB_CONTAINER = "nl2sql"
-    STORAGE_ACCOUNT = "r2d2nl2sql"
         if _HAS_BLOB and AZURE_BLOB_CONN:
             try:
                 blob_service = BlobServiceClient.from_connection_string(AZURE_BLOB_CONN)
