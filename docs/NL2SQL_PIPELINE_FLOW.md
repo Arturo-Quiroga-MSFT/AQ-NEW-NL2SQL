@@ -6,44 +6,44 @@ This document shows the current end-to-end flow of the NL2SQL-only pipeline, inc
 
 ```mermaid
 flowchart TD
-    %% Entry
-    A[User NL Question] --> B[CLI parse\n--query, --no-exec, --no-reasoning, --explain-only, --refresh-schema]
+  %% Entry
+  A["User NL Question"] --> B["CLI parse<br/>--query, --no-exec, --no-reasoning, --explain-only, --refresh-schema"]
 
-    %% Environment
-    subgraph ENV[Environment]
-      E1[.env loaded\n(AZURE_OPENAI_*, AZURE_SQL_*)]
-      E2[ODBC Driver 18 installed]
-    end
+  %% Environment
+  subgraph ENV["Environment"]
+    E1[".env loaded<br/>(AZURE_OPENAI_*, AZURE_SQL_*)"]
+    E2["ODBC Driver 18 installed"]
+  end
 
-    B --> C{--refresh-schema?}
-    C -- yes --> C1[Refresh schema cache\nschema_reader.refresh_schema_cache()]
-    C -- no --> D
-    C1 --> D
+  B --> C{"--refresh-schema?"}
+  C -- yes --> C1["Refresh schema cache<br/>schema_reader.refresh_schema_cache()"]
+  C -- no --> D
+  C1 --> D
 
-    D[get_sql_database_schema_context\n(TTL 24h default)] --> E[Intent extraction\nLangChain -> AzureChatOpenAI]
+  D["get_sql_database_schema_context<br/>(TTL 24h default)"] --> E["Intent extraction<br/>LangChain -> AzureChatOpenAI"]
 
-    E --> F{Show reasoning?}
-    F -- yes --> G[Reasoning summary\n(no SQL)]
-    G --> H{--explain-only?}
-    F -- no --> H
+  E --> F{"Show reasoning?"}
+  F -- yes --> G["Reasoning summary<br/>(no SQL)"]
+  G --> H{"--explain-only?"}
+  F -- no --> H
 
-    H -- yes --> X[Persist banners + reasoning\nRESULTS/*.txt] --> Z[Exit]
-    H -- no --> I[SQL generation\nSchema-aware prompt -> AzureChatOpenAI]
+  H -- yes --> X["Persist banners + reasoning<br/>RESULTS/*.txt"] --> Z["Exit"]
+  H -- no --> I["SQL generation<br/>Schema-aware prompt -> AzureChatOpenAI"]
 
-    I --> J[Extract & sanitize SQL]
-    J --> K{--no-exec?}
-    K -- yes --> X
-    K -- no --> L[Execute SQL via pyodbc\nsql_executor.execute_sql_query()]
-    L --> M[Format table output]
-    M --> X
+  I --> J["Extract & sanitize SQL"]
+  J --> K{"--no-exec?"}
+  K -- yes --> X
+  K -- no --> L["Execute SQL via pyodbc<br/>sql_executor.execute_sql_query()"]
+  L --> M["Format table output"]
+  M --> X
 
-    subgraph ARTIFACTS[Artifacts]
-      X[Write full run log\nAQ-NEW-NL2SQL/RESULTS/…]
-      C1
-    end
+  subgraph ARTIFACTS["Artifacts"]
+    X
+    C1
+  end
 
-    %% Errors
-    L -. error .-> ER[Print error banner\npersist to RESULTS] --> Z
+  %% Errors
+  L -. "error" .-> ER["Print error banner<br/>persist to RESULTS"] --> Z
 ```
 
 Quick view (raw Mermaid):
@@ -54,10 +54,10 @@ Quick view (raw Mermaid):
 ```mermaid
 sequenceDiagram
   participant User
-  participant CLI as nl2sql_main.py
-  participant Schema as schema_reader
-  participant LLM as AzureChatOpenAI
-  participant SQL as sql_executor (pyodbc)
+  participant CLI as "nl2sql_main.py"
+  participant Schema as "schema_reader"
+  participant LLM as "AzureChatOpenAI"
+  participant SQL as "sql_executor (pyodbc)"
 
   User->>CLI: --query "…"
   CLI->>Schema: get_sql_database_schema_context(TTL)
@@ -116,35 +116,35 @@ The diagram below maps common question categories to the typical views/tables in
 
 ```mermaid
 flowchart LR
-  subgraph Q[Question types]
-    q1[Portfolio overview<br/>(exposure by region/subregion)]
-    q2[Rate/spread analysis]
-    q3[Delinquency & payments]
-    q4[Covenant compliance & risk]
-    q5[Customer profiling]
-    q6[Collateral valuation]
-    q7[FX-normalized metrics]
+  subgraph Q["Question types"]
+    q1["Portfolio overview<br/>(exposure by region/subregion)"]
+    q2["Rate/spread analysis"]
+    q3["Delinquency & payments"]
+    q4["Covenant compliance & risk"]
+    q5["Customer profiling"]
+    q6["Collateral valuation"]
+    q7["FX-normalized metrics"]
   end
 
-  subgraph S[Data sources (views/tables)]
-    s1[(dbo.vw_LoanPortfolio)]
-    s2[(dbo.Loan)]
-    s3[(dbo.PaymentSchedule)]
-    s4[(dbo.PaymentEvent)]
-    s5[(dbo.Covenant)]
-    s6[(dbo.CovenantSchedule)]
-    s7[(dbo.CovenantTestResult)]
-    s8[(dbo.RiskMetricHistory)]
-    s9[(dbo.Company)]
-    s10[(dbo.CustomerProfile)]
-    s11[(dbo.CompanyAddress)]
-    s12[(dbo.Collateral)]
-    s13[(ref.Region)]
-    s14[(ref.Subregion)]
-    s15[(ref.Country)]
-    s16[(ref.Currency)]
-    s17[(ref.ReferenceRate)]
-    s18[(ref.FXRateDaily)]
+  subgraph S["Data sources (views/tables)"]
+    s1["dbo.vw_LoanPortfolio"]
+    s2["dbo.Loan"]
+    s3["dbo.PaymentSchedule"]
+    s4["dbo.PaymentEvent"]
+    s5["dbo.Covenant"]
+    s6["dbo.CovenantSchedule"]
+    s7["dbo.CovenantTestResult"]
+    s8["dbo.RiskMetricHistory"]
+    s9["dbo.Company"]
+    s10["dbo.CustomerProfile"]
+    s11["dbo.CompanyAddress"]
+    s12["dbo.Collateral"]
+    s13["ref.Region"]
+    s14["ref.Subregion"]
+    s15["ref.Country"]
+    s16["ref.Currency"]
+    s17["ref.ReferenceRate"]
+    s18["ref.FXRateDaily"]
   end
 
   %% Portfolio overview
