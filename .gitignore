@@ -63,3 +63,5 @@ logs/
 # Uncomment to avoid committing generated run outputs
 # RESULTS/
 # RESULTS/*.txt
+
+create*.sh
