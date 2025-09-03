@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -22,6 +23,7 @@ from nl2sql_main import (
     _TOKEN_USAGE,
     _get_pricing_for_deployment,
     DEPLOYMENT_NAME,
+    _format_table,
 )
 from schema_reader import refresh_schema_cache, get_sql_database_schema_context
 from sql_executor import execute_sql_query
@@ -124,6 +126,8 @@ if run_clicked:
     _TOKEN_USAGE["prompt"] = 0
     _TOKEN_USAGE["completion"] = 0
     _TOKEN_USAGE["total"] = 0
+    result_rows: List[Dict[str, Any]] | None = None
+    exec_error: str | None = None
 
     if not query.strip():
         st.warning("Please enter a question.")
@@ -164,6 +168,7 @@ if run_clicked:
                 if rows:
                     st.markdown("### Results")
                     st.dataframe(rows, width='stretch')
+                    result_rows = rows
                     # Export buttons
                     exp_cols = st.columns([1,1,1,6])
                     with exp_cols[0]:
@@ -198,6 +203,7 @@ if run_clicked:
                     st.info("No results returned.")
             except Exception as e:
                 st.error(f"SQL execution failed: {e}")
+                exec_error = str(e)
     elif explain_only:
         st.info("Explain-only mode: SQL generation and execution skipped")
     else:
@@ -255,10 +261,56 @@ if run_clicked:
                 "========== SANITIZED SQL (FOR EXECUTION) ==========\n",
                 sanitized_sql + "\n\n",
             ]
+        if result_rows is not None:
+            table_text, table_lines = _format_table(result_rows)
+            run_summary += [
+                "========== SQL QUERY RESULTS (TABLE) ==========\n",
+            ] + [line + "\n" for line in table_lines] + ["\n"]
+        if exec_error is not None:
+            run_summary += [
+                "========== SQL QUERY ERROR ==========\n",
+                exec_error + "\n\n",
+            ]
+    # Token usage & cost (append to log similar to CLI)
+    in_price_1k_log, out_price_1k_log, src_log, currency_log = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    prompt_t_log = TOK["prompt"]
+    completion_t_log = TOK["completion"]
+    total_t_log = TOK["total"] or (prompt_t_log + completion_t_log)
+    if in_price_1k_log is not None and out_price_1k_log is not None:
+        input_cost = (prompt_t_log / 1000.0) * in_price_1k_log
+        output_cost = (completion_t_log / 1000.0) * out_price_1k_log
+        total_cost = input_cost + output_cost
+        run_summary += [
+            "========== TOKEN USAGE & COST ==========\n",
+            f"Input tokens: {prompt_t_log}\n",
+            f"Completion tokens: {completion_t_log}\n",
+            f"Total tokens: {total_t_log}\n",
+            (
+                f"Estimated cost ({currency_log}): {total_cost:.6f}  "
+                f"[input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k_log}, out={out_price_1k_log}; source={src_log}]\n\n"
+            ),
+        ]
+    else:
+        run_summary += [
+            "========== TOKEN USAGE ==========\n",
+            f"Input tokens: {prompt_t_log}\n",
+            f"Completion tokens: {completion_t_log}\n",
+            f"Total tokens: {total_t_log}\n",
+            "[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n\n",
+        ]
     try:
-        with open(os.path.join(results_dir, out_filename), "w") as f:
+        txt_path = os.path.join(results_dir, out_filename)
+        with open(txt_path, "w") as f:
             for line in run_summary:
                 f.write(line)
-        st.caption(f"Run log written to RESULTS/{out_filename}")
+        # If we have results, also write JSON sidecar for programmatic reuse
+        sidecar_msg = ""
+        if result_rows is not None:
+            json_name = out_filename.replace(".txt", ".json")
+            json_path = os.path.join(results_dir, json_name)
+            with open(json_path, "w", encoding="utf-8") as jf:
+                json.dump(result_rows, jf, ensure_ascii=False, indent=2)
+            sidecar_msg = f"; JSON rows written to RESULTS/{json_name}"
+        st.caption(f"Run log written to RESULTS/{out_filename}{sidecar_msg}")
     except Exception:
         pass
