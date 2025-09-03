@@ -38,6 +38,9 @@ st.set_page_config(
 def _load_examples() -> List[str]:
     path = os.path.join(ROOT, "docs", "CONTOSO-FI_EXAMPLE_QUESTIONS.txt")
     examples: List[str] = []
+    # Debug: print resolved path and file existence
+    print(f"[DEBUG] Looking for example questions at: {path}")
+    print(f"[DEBUG] File exists: {os.path.exists(path)}")
     try:
         with open(path, "r") as f:
             for line in f:
@@ -49,8 +52,8 @@ def _load_examples() -> List[str]:
                     # Remove leading ordinal like '1) '
                     q = line.split(")", 1)[1].strip()
                     examples.append(q)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[DEBUG] Exception reading example questions: {e}")
     # Fallback defaults if file missing
     if not examples:
         examples = [
@@ -92,8 +95,16 @@ with st.sidebar:
         ctx = get_sql_database_schema_context(ttl_seconds=0)
         st.code(ctx[:4000], language="text")
 
+
 # Main layout
-st.markdown("## 🧠 NL2SQL Interactive Demo")
+st.markdown("""
+<h1 style='text-align: left;'>Contoso-FI Natural Language to SQL Analytics</h1>
+<p style='font-size:1.1em;'>
+<b>Ask questions in plain English and get instant, explainable SQL and results from the Contoso-FI financial dataset.</b><br>
+This app lets you explore a realistic banking/loans database using natural language. It generates SQL, explains its reasoning, and runs the query live against Azure SQL.<br><br>
+<b>About the data:</b> The <b>Contoso-FI</b> dataset models a mid-size financial institution, with tables for loans, companies, collateral, covenants, payments, risk, and more. You can ask about loan portfolios, top companies, regional breakdowns, risk metrics, and other financial insights.
+</p>
+""", unsafe_allow_html=True)
 
 # Example questions pills
 st.markdown("### Examples")
