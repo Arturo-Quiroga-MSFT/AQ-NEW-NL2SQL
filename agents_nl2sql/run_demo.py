@@ -1,7 +1,11 @@
 from __future__ import annotations
 import argparse
+import os
+import json
+from datetime import datetime
 from .state import Flags
 from .nodes import ingest, schema_ctx, intent, sql_gen, sanitize, execute
+from .nodes import reasoning
 
 try:
     from .graph import build as build_graph  # type: ignore
@@ -47,6 +51,8 @@ def main() -> int:
                     state.sql_raw = args.query
                 else:
                     state = intent.run(state)
+                    if not state.flags.no_reasoning:
+                        state = reasoning.run(state)
                     state = sql_gen.run(state)
                 state = sanitize.run(state)
                 state = execute.run(state)
@@ -56,6 +62,8 @@ def main() -> int:
             state.sql_raw = args.query
         else:
             state = intent.run(state)
+            if not state.flags.no_reasoning:
+                state = reasoning.run(state)
             state = sql_gen.run(state)
         state = sanitize.run(state)
         state = execute.run(state)
@@ -67,8 +75,84 @@ def main() -> int:
         for e in state.errors:
             print(" -", e)
     print("\nSchema ctx (truncated):", (state.schema_context[:200] + "...") if state.schema_context else "<none>")
+    print("\nReasoning:\n", state.reasoning or "<none>")
     print("\nSQL (sanitized):\n", state.sql_sanitized or "<none>")
     print("\nExecution preview:\n", state.execution_result.preview or "<none>")
+
+    # Persist results under RESULTS/
+    try:
+        os.makedirs("RESULTS", exist_ok=True)
+        # Build a safe filename stem from the query
+        slug = "".join(ch if ch.isalnum() or ch in (" ", "_", "-") else "_" for ch in state.user_query).strip()
+        slug = "_".join(slug.split())
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base = f"agents_nl2sql_run_{slug}_{ts}"
+
+        # Cost computation if pricing available
+        usage = state.token_usage
+        pricing = state.pricing
+        cost_line = ""
+        if pricing and pricing.input_per_1k is not None and pricing.output_per_1k is not None:
+            cost_in = (usage.prompt or 0) / 1000.0 * float(pricing.input_per_1k)
+            cost_out = (usage.completion or 0) / 1000.0 * float(pricing.output_per_1k)
+            cost_total = cost_in + cost_out
+            currency = pricing.currency or "USD"
+            cost_line = (
+                f"Token usage: prompt={usage.prompt}, completion={usage.completion}, total={usage.total}\n"
+                f"Pricing: in/1k={pricing.input_per_1k} {currency}, out/1k={pricing.output_per_1k} {currency} (source={pricing.source})\n"
+                f"Estimated cost: in={cost_in:.4f} {currency}, out={cost_out:.4f} {currency}, total={cost_total:.4f} {currency}\n"
+            )
+        else:
+            cost_line = f"Token usage: prompt={usage.prompt}, completion={usage.completion}, total={usage.total}\n"
+
+        # Compose run log text
+        lines = []
+        lines.append("=== NL2SQL Agents Demo Run ===")
+        lines.append(f"Run ID: {state.run_id}")
+        lines.append(f"Started: {datetime.fromtimestamp(state.started_at).isoformat()}")
+        lines.append("")
+        lines.append(f"Query: {state.user_query}")
+        lines.append(f"Flags: no_exec={state.flags.no_exec}, no_reasoning={state.flags.no_reasoning}, explain_only={state.flags.explain_only}, refresh_schema={state.flags.refresh_schema}")
+        if state.errors:
+            lines.append("")
+            lines.append("Errors:")
+            for e in state.errors:
+                lines.append(f" - {e}")
+        lines.append("")
+        sc = (state.schema_context or "").strip()
+        lines.append("Schema context:")
+        lines.append(sc if sc else "<none>")
+        lines.append("")
+        ie = state.intent_entities
+        lines.append("Intent/Entities:")
+        lines.append(json.dumps(ie, indent=2) if ie is not None else "<none>")
+        lines.append("")
+        lines.append("Reasoning:")
+        lines.append((state.reasoning or "<none>").strip())
+        lines.append("")
+        lines.append("SQL (sanitized):")
+        lines.append((state.sql_sanitized or "<none>").strip())
+        lines.append("")
+        lines.append("Execution preview:")
+        lines.append((state.execution_result.preview or "<none>").strip())
+        lines.append("")
+        lines.append(cost_line.rstrip())
+
+        txt_path = os.path.join("RESULTS", f"{base}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        # JSON sidecar with exact rows if any
+        rows = state.execution_result.rows or []
+        if rows:
+            json_path = os.path.join("RESULTS", f"{base}.json")
+            with open(json_path, "w", encoding="utf-8") as jf:
+                json.dump(rows, jf, ensure_ascii=False, indent=2)
+            print(f"\nArtifacts: wrote {os.path.basename(txt_path)} and {os.path.basename(json_path)} to RESULTS/")
+        else:
+            print(f"\nArtifact: wrote {os.path.basename(txt_path)} to RESULTS/")
+    except Exception as ex:
+        print(f"\n[warn] Failed to persist run artifacts: {ex}")
     return 0
 
 
