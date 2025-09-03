@@ -163,7 +163,7 @@ if run_clicked:
                 rows: List[Dict[str, Any]] = execute_sql_query(sanitized_sql)
                 if rows:
                     st.markdown("### Results")
-                    st.dataframe(rows, use_container_width=True)
+                    st.dataframe(rows, width='stretch')
                     # Export buttons
                     exp_cols = st.columns([1,1,1,6])
                     with exp_cols[0]:

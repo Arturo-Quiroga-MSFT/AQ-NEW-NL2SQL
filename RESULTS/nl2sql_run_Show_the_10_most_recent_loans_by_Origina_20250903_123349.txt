@@ -1,0 +1,67 @@
+========== NATURAL LANGUAGE QUERY ==========
+Show the 10 most recent loans by OriginationDate.
+
+========== INTENT & ENTITIES ==========
+- Intent: Retrieve the 10 most recent loan records.
+- Entities:
+  - Table: loans
+  - Order by: OriginationDate
+  - Sort direction: DESC (most recent first)
+  - Limit: 10
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: “loans” maps to dbo.vw_LoanPortfolio (preferred for portfolio queries).
+- Tables/Joins: Use dbo.vw_LoanPortfolio only; no joins required since needed fields are in the view.
+- Aggregations: None needed; simple retrieval.
+- Filters: No explicit filters; include all loans as-of the view. (No status/currency constraints unless specified.)
+- Order/Limit: Sort by OriginationDate descending to get most recent; apply TOP 10 (SQL Server). Optional tie-breaker by LoanId DESC.
+- Assumptions: “Most recent” is determined solely by OriginationDate; OriginationDate is populated for all returned rows; no need to de-duplicate beyond LoanId uniqueness.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP (10)
+    LoanId,
+    LoanNumber,
+    CompanyName,
+    Industry,
+    CreditRating,
+    CountryName,
+    RegionName,
+    OriginationDate,
+    MaturityDate,
+    PrincipalAmount,
+    CurrencyCode,
+    InterestRatePct,
+    InterestRateType,
+    ReferenceRate,
+    SpreadBps,
+    AmortizationType,
+    PaymentFreqMonths,
+    Status,
+    Purpose
+FROM dbo.vw_LoanPortfolio
+ORDER BY OriginationDate DESC, LoanId DESC
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP (10)
+    LoanId,
+    LoanNumber,
+    CompanyName,
+    Industry,
+    CreditRating,
+    CountryName,
+    RegionName,
+    OriginationDate,
+    MaturityDate,
+    PrincipalAmount,
+    CurrencyCode,
+    InterestRatePct,
+    InterestRateType,
+    ReferenceRate,
+    SpreadBps,
+    AmortizationType,
+    PaymentFreqMonths,
+    Status,
+    Purpose
+FROM dbo.vw_LoanPortfolio
+ORDER BY OriginationDate DESC, LoanId DESC
+
