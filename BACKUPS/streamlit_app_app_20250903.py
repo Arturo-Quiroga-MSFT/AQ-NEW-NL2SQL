@@ -113,12 +113,6 @@ with run_cols[0]:
     run_clicked = st.button("Run", type="primary")
 with run_cols[1]:
     no_exec = st.toggle("Skip execution", value=False, help="Generate SQL but do not run it")
-with st.container():
-    togg_cols = st.columns([1, 1, 6])
-    with togg_cols[0]:
-        explain_only = st.toggle("Explain-only", value=False, help="Show intent and reasoning only; skip SQL generation and execution")
-    with togg_cols[1]:
-        no_reasoning = st.toggle("No reasoning", value=False, help="Skip the reasoning/plan step")
 
 if run_clicked:
     # Reset token usage counters for a new run
@@ -137,70 +131,34 @@ if run_clicked:
     st.markdown("### Intent & Entities")
     st.write(intent_entities)
 
-    reasoning = None
-    if not no_reasoning or explain_only:
-        with st.spinner("Generating reasoning plan..."):
-            reasoning = generate_reasoning(intent_entities)
-        with st.expander("Reasoning (high-level plan)", expanded=True):
-            st.write(reasoning)
+    with st.spinner("Generating reasoning plan..."):
+        reasoning = generate_reasoning(intent_entities)
 
-    if not explain_only:
-        with st.spinner("Generating SQL..."):
-            raw_sql = generate_sql(intent_entities)
+    with st.expander("Reasoning (high-level plan)", expanded=True):
+        st.write(reasoning)
 
-    if not explain_only:
-        st.markdown("### Generated SQL (raw)")
-        st.code(raw_sql, language="sql")
+    with st.spinner("Generating SQL..."):
+        raw_sql = generate_sql(intent_entities)
 
-    if not explain_only:
-        sanitized_sql = extract_and_sanitize_sql(raw_sql)
-        if sanitized_sql != raw_sql:
-            st.markdown("### Sanitized SQL (for execution)")
-            st.code(sanitized_sql, language="sql")
+    st.markdown("### Generated SQL (raw)")
+    st.code(raw_sql, language="sql")
 
-    if not explain_only and not no_exec:
+    sanitized_sql = extract_and_sanitize_sql(raw_sql)
+    if sanitized_sql != raw_sql:
+        st.markdown("### Sanitized SQL (for execution)")
+        st.code(sanitized_sql, language="sql")
+
+    if not no_exec:
         with st.spinner("Executing SQL against Azure SQL Database..."):
             try:
                 rows: List[Dict[str, Any]] = execute_sql_query(sanitized_sql)
                 if rows:
                     st.markdown("### Results")
                     st.dataframe(rows, use_container_width=True)
-                    # Export buttons
-                    exp_cols = st.columns([1,1,1,6])
-                    with exp_cols[0]:
-                        csv_data = None
-                        try:
-                            import pandas as pd
-                            df = pd.DataFrame(rows)
-                            csv_data = df.to_csv(index=False).encode("utf-8")
-                            st.download_button("⬇️ Download CSV", data=csv_data, file_name="results.csv", mime="text/csv")
-                        except Exception:
-                            pass
-                    with exp_cols[1]:
-                        try:
-                            import pandas as pd
-                            xlsx_bytes = None
-                            df = pd.DataFrame(rows)
-                            from io import BytesIO
-                            bio = BytesIO()
-                            with pd.ExcelWriter(bio, engine="xlsxwriter") as writer:
-                                df.to_excel(writer, index=False, sheet_name="Results")
-                            xlsx_bytes = bio.getvalue()
-                            st.download_button("⬇️ Download Excel", data=xlsx_bytes, file_name="results.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                        except Exception:
-                            pass
-                    with exp_cols[2]:
-                        # Copy SQL button (shows a copyable text area)
-                        if 'sanitized_sql' in locals():
-                            st.button("📋 Copy SQL", on_click=lambda: st.session_state.update({"_copy_sql": sanitized_sql}))
-                            if st.session_state.get("_copy_sql"):
-                                st.code(st.session_state["_copy_sql"], language="sql")
                 else:
                     st.info("No results returned.")
             except Exception as e:
                 st.error(f"SQL execution failed: {e}")
-    elif explain_only:
-        st.info("Explain-only mode: SQL generation and execution skipped")
     else:
         st.info("Execution skipped.")
 
@@ -240,22 +198,13 @@ if run_clicked:
         query + "\n\n",
         "========== INTENT & ENTITIES ==========\n",
         intent_entities + "\n\n",
+        "========== SQL GENERATION REASONING ==========\n",
+        reasoning + "\n\n",
+        "========== GENERATED SQL (RAW) ==========\n",
+        raw_sql + "\n\n",
+        "========== SANITIZED SQL (FOR EXECUTION) ==========\n",
+        sanitized_sql + "\n\n",
     ]
-    if reasoning is not None:
-        run_summary += [
-            "========== SQL GENERATION REASONING ==========\n",
-            reasoning + "\n\n",
-        ]
-    if not explain_only:
-        run_summary += [
-            "========== GENERATED SQL (RAW) ==========\n",
-            raw_sql + "\n\n",
-        ]
-        if 'sanitized_sql' in locals():
-            run_summary += [
-                "========== SANITIZED SQL (FOR EXECUTION) ==========\n",
-                sanitized_sql + "\n\n",
-            ]
     try:
         with open(os.path.join(results_dir, out_filename), "w") as f:
             for line in run_summary:
