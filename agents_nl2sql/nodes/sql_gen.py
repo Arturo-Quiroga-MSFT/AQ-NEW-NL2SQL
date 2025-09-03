@@ -11,6 +11,8 @@ SQL_PROMPT_TEXT = (
     - Generate only the SELECT query without USE or GO statements
     - Return only executable T-SQL code without markdown formatting
     - The database connection is already established to the correct database
+    - Avoid using aggregate functions (SUM, COUNT, AVG, MIN, MAX) directly on subqueries or derived tables in the SELECT clause, as this is not supported in SQL Server. Instead, use CTEs or JOINs for such aggregations.
+    - If you need to aggregate over a subquery, use a CTE (WITH ...) or join the subquery result to the main query.
 
     Schema:
     {schema}

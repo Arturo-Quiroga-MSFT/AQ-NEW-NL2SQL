@@ -31,9 +31,18 @@ def _extract_and_sanitize(sql: str) -> str:
     forbidden = re.compile(r"(?is)\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|EXEC|GRANT|REVOKE|DENY)\b")
     if forbidden.search(code):
         return ""
+    # Detect unsupported aggregate/subquery pattern for SQL Server
+    # Example: SELECT SUM((SELECT ...)) or SELECT COUNT((SELECT ...))
+    agg_subquery = re.compile(r"(?is)\b(SUM|COUNT|AVG|MIN|MAX)\s*\(\s*\(\s*SELECT[\s\S]+?\)\s*\)")
+    if agg_subquery.search(code):
+        code += "\n-- [WARNING] This query uses an aggregate function directly on a subquery in the SELECT clause, which is not supported in SQL Server. Consider rewriting using a CTE or JOIN."
     return code
 
 
 def run(state: GraphState) -> GraphState:
-    state.sql_sanitized = _extract_and_sanitize(state.sql_raw)
+    sanitized = _extract_and_sanitize(state.sql_raw)
+    # If warning is present, add to errors for user visibility
+    if '-- [WARNING]' in sanitized:
+        state.add_error('SQL contains unsupported aggregate/subquery pattern. See warning in SQL output.')
+    state.sql_sanitized = sanitized
     return state
