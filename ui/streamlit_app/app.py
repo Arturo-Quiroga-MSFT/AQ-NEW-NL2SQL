@@ -1,8 +1,18 @@
+
 import os
 import sys
 import json
 from datetime import datetime
 from typing import List, Dict, Any
+
+# Azure Blob Storage
+import tempfile
+from urllib.parse import quote as urlquote
+try:
+    from azure.storage.blob import BlobServiceClient
+    _HAS_BLOB = True
+except ImportError:
+    _HAS_BLOB = False
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -326,6 +336,8 @@ if run_clicked:
             f"Total tokens: {total_t_log}\n",
             "[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n\n",
         ]
+    blob_url = None
+    blob_error = None
     try:
         txt_path = os.path.join(results_dir, out_filename)
         with open(txt_path, "w") as f:
@@ -339,6 +351,29 @@ if run_clicked:
             with open(json_path, "w", encoding="utf-8") as jf:
                 json.dump(result_rows, jf, ensure_ascii=False, indent=2)
             sidecar_msg = f"; JSON rows written to RESULTS/{json_name}"
-        st.caption(f"Run log written to RESULTS/{out_filename}{sidecar_msg}")
-    except Exception:
-        pass
+        # Upload to Azure Blob Storage if possible
+        AZURE_BLOB_CONN = os.getenv("AZURE_BLOB_CONNECTION_STRING")
+    BLOB_CONTAINER = "nl2sql"
+    STORAGE_ACCOUNT = "r2d2nl2sql"
+        if _HAS_BLOB and AZURE_BLOB_CONN:
+            try:
+                blob_service = BlobServiceClient.from_connection_string(AZURE_BLOB_CONN)
+                container_client = blob_service.get_container_client(BLOB_CONTAINER)
+                # Upload log file
+                with open(txt_path, "rb") as data:
+                    container_client.upload_blob(out_filename, data, overwrite=True)
+                blob_url = f"https://{STORAGE_ACCOUNT}.blob.core.windows.net/{BLOB_CONTAINER}/{urlquote(out_filename)}"
+            except Exception as ex:
+                blob_error = str(ex)
+        # Show download link if uploaded
+        if blob_url:
+            st.success(f"Run log uploaded to Azure Blob Storage: [Download log]({blob_url}){sidecar_msg}")
+        else:
+            st.caption(f"Run log written to RESULTS/{out_filename}{sidecar_msg}")
+            if blob_error:
+                st.warning(f"Blob upload failed: {blob_error}")
+        # Optionally, offer direct download from local file (for local runs)
+        with open(txt_path, "rb") as f:
+            st.download_button("⬇️ Download log file", data=f, file_name=out_filename, mime="text/plain")
+    except Exception as ex:
+        st.error(f"Failed to write or upload run log: {ex}")
