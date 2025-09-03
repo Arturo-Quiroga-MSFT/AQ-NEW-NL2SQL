@@ -129,6 +129,7 @@ python nl2sql_main.py --query "For each region, list the top 5 companies by bala
 - `docs/`: Guides and Mermaid diagrams. The flowchart SVG is generated from Mermaid sources.
 - `RESULTS/`: Timestamped logs from pipeline runs; consider ignoring in `.gitignore` if you don’t want to commit them.
 
+
 ## Streamlit UI (Demo)
 
 An interactive UI for the same NL→Intent→Reasoning→SQL→Results pipeline lives under `ui/streamlit_app/app.py`.
@@ -144,7 +145,8 @@ Features
 - Exports: CSV and Excel for results, “Copy SQL” button to show copyable SQL
 - Logging: Writes a `.txt` log and a `.json` sidecar containing the exact result rows
 
-Run the UI
+
+Run the UI locally
 ```bash
 # Install repo requirements (includes Streamlit, pandas, etc.)
 python -m pip install -r requirements.txt
@@ -152,6 +154,53 @@ python -m pip install -r requirements.txt
 # Start the Streamlit app
 streamlit run ui/streamlit_app/app.py
 ```
+
+### Run the Streamlit UI as a container (Azure Container Apps)
+
+You can now run the Streamlit UI fully containerized, either locally or in Azure Container Apps (ACA).
+
+**Build and run locally:**
+```bash
+# Build the Docker image
+docker build -t nl2sql-streamlit-app .
+
+# Run the container (replace env vars as needed)
+docker run -p 8501:8501 \
+  -e AZURE_SQL_SERVER=... \
+  -e AZURE_SQL_DB=... \
+  -e AZURE_SQL_USER=... \
+  -e AZURE_SQL_PASSWORD=... \
+  nl2sql-streamlit-app
+```
+
+**Deploy to Azure Container Apps:**
+1. Build and push the image to Azure Container Registry (ACR):
+   ```bash
+   az acr build --registry <acr-name> --image nl2sql-streamlit-app:latest .
+   ```
+2. Create a Container Apps environment and deploy:
+   ```bash
+   az containerapp env create --name <env-name> --resource-group <rg> --location <region>
+   az containerapp create \
+     --name nl2sql-streamlit-app \
+     --resource-group <rg> \
+     --environment <env-name> \
+     --image <acr-name>.azurecr.io/nl2sql-streamlit-app:latest \
+     --registry-server <acr-name>.azurecr.io \
+     --registry-username <acr-username> \
+     --registry-password <acr-password> \
+     --cpu 1 --memory 2Gi \
+     --env-vars AZURE_SQL_SERVER=... AZURE_SQL_DB=... AZURE_SQL_USER=... AZURE_SQL_PASSWORD=... \
+     --target-port 8501 --ingress 'external'
+   ```
+
+**Screenshot of the containerized app running in Azure Container Apps:**
+
+<p align="center">
+  <img src="docs/diagrams/nl2sql-aca-screenshot.png" alt="NL2SQL Streamlit UI in Azure Container Apps" width="900" />
+  <br />
+  <em>NL2SQL Streamlit UI running in Azure Container Apps, showing SQL generation and results.</em>
+</p>
 
 Notes
 - Ensure your `.env` (or shell env) contains the same variables listed under Prerequisites.
