@@ -1,0 +1,214 @@
+import os
+import sys
+from datetime import datetime
+from typing import List, Dict, Any
+
+import streamlit as st
+from dotenv import load_dotenv
+
+# Ensure repo root on sys.path so we can import pipeline modules
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+load_dotenv()
+
+# Import pipeline helpers from root modules
+from nl2sql_main import (
+    parse_nl_query,
+    generate_reasoning,
+    generate_sql,
+    extract_and_sanitize_sql,
+    _TOKEN_USAGE,
+    _get_pricing_for_deployment,
+    DEPLOYMENT_NAME,
+)
+from schema_reader import refresh_schema_cache, get_sql_database_schema_context
+from sql_executor import execute_sql_query
+
+# ------------ UI Config ------------
+st.set_page_config(
+    page_title="NL2SQL Demo",
+    page_icon="🧠",
+    layout="wide",
+)
+
+def _load_examples() -> List[str]:
+    path = os.path.join(ROOT, "docs", "CONTOSO-FI_EXAMPLE_QUESTIONS.txt")
+    examples: List[str] = []
+    try:
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Lines beginning with a number and ')' are questions
+                if line[0].isdigit() and ")" in line[:4]:
+                    # Remove leading ordinal like '1) '
+                    q = line.split(")", 1)[1].strip()
+                    examples.append(q)
+    except Exception:
+        pass
+    # Fallback defaults if file missing
+    if not examples:
+        examples = [
+            "Show the 10 most recent loans by OriginationDate.",
+            "For each company with loans, compute total principal amount; show the top 20 companies by total principal.",
+            "For each region, list the top 5 companies by total principal amount.",
+        ]
+    # Limit to a reasonable number for buttons
+    return examples[:12]
+
+EXAMPLE_QUESTIONS: List[str] = _load_examples()
+
+# Sidebar controls
+with st.sidebar:
+    st.title("NL2SQL Demo UI")
+    st.caption("Natural Language → Intent → Reasoning → SQL → Results")
+    # Environment status
+    with st.expander("Environment status", expanded=False):
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        dep = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        sql_server = os.getenv("AZURE_SQL_SERVER")
+        sql_db = os.getenv("AZURE_SQL_DB")
+        sql_user = os.getenv("AZURE_SQL_USER")
+        sql_pwd = os.getenv("AZURE_SQL_PASSWORD")
+        def ok(v: Any) -> str:
+            return "✅" if v else "⚠️"
+        st.write(f"Azure OpenAI Key {ok(api_key)}")
+        st.write(f"Azure OpenAI Endpoint {ok(endpoint)}")
+        st.write(f"Deployment {ok(dep)}")
+        st.write(f"SQL Server {ok(sql_server)} | DB {ok(sql_db)} | User {ok(sql_user)} | Password {ok(sql_pwd)}")
+    if st.button("🔁 Refresh schema cache"):
+        try:
+            path = refresh_schema_cache()
+            st.success(f"Schema cache refreshed: {path}")
+        except Exception as e:
+            st.error(f"Failed to refresh schema cache: {e}")
+    with st.expander("Current schema context (preview)", expanded=False):
+        ctx = get_sql_database_schema_context(ttl_seconds=0)
+        st.code(ctx[:4000], language="text")
+
+# Main layout
+st.markdown("## 🧠 NL2SQL Interactive Demo")
+
+# Example questions pills
+st.markdown("### Examples")
+cols = st.columns(min(3, len(EXAMPLE_QUESTIONS)))
+for i, q in enumerate(EXAMPLE_QUESTIONS):
+    with cols[i % len(cols)]:
+        if st.button(q, key=f"ex_{i}"):
+            st.session_state["input_query"] = q
+
+# Input area
+query = st.text_area(
+    "Enter your question",
+    value=st.session_state.get("input_query", "Show the 10 most recent loans"),
+    height=80,
+)
+
+run_cols = st.columns([1, 1, 5])
+with run_cols[0]:
+    run_clicked = st.button("Run", type="primary")
+with run_cols[1]:
+    no_exec = st.toggle("Skip execution", value=False, help="Generate SQL but do not run it")
+
+if run_clicked:
+    # Reset token usage counters for a new run
+    _TOKEN_USAGE["prompt"] = 0
+    _TOKEN_USAGE["completion"] = 0
+    _TOKEN_USAGE["total"] = 0
+
+    if not query.strip():
+        st.warning("Please enter a question.")
+        st.stop()
+
+    # Orchestrate pipeline
+    with st.spinner("Extracting intent and entities..."):
+        intent_entities = parse_nl_query(query)
+
+    st.markdown("### Intent & Entities")
+    st.write(intent_entities)
+
+    with st.spinner("Generating reasoning plan..."):
+        reasoning = generate_reasoning(intent_entities)
+
+    with st.expander("Reasoning (high-level plan)", expanded=True):
+        st.write(reasoning)
+
+    with st.spinner("Generating SQL..."):
+        raw_sql = generate_sql(intent_entities)
+
+    st.markdown("### Generated SQL (raw)")
+    st.code(raw_sql, language="sql")
+
+    sanitized_sql = extract_and_sanitize_sql(raw_sql)
+    if sanitized_sql != raw_sql:
+        st.markdown("### Sanitized SQL (for execution)")
+        st.code(sanitized_sql, language="sql")
+
+    if not no_exec:
+        with st.spinner("Executing SQL against Azure SQL Database..."):
+            try:
+                rows: List[Dict[str, Any]] = execute_sql_query(sanitized_sql)
+                if rows:
+                    st.markdown("### Results")
+                    st.dataframe(rows, use_container_width=True)
+                else:
+                    st.info("No results returned.")
+            except Exception as e:
+                st.error(f"SQL execution failed: {e}")
+    else:
+        st.info("Execution skipped.")
+
+    # Token usage and cost
+    from nl2sql_main import _TOKEN_USAGE as TOK
+    in_price_1k, out_price_1k, src, currency = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    prompt_t = TOK["prompt"]
+    completion_t = TOK["completion"]
+    total_t = TOK["total"] or (prompt_t + completion_t)
+    with st.expander("Token usage & estimated cost", expanded=False):
+        st.write({
+            "prompt_tokens": prompt_t,
+            "completion_tokens": completion_t,
+            "total_tokens": total_t,
+            "pricing_source": src,
+            "currency": currency,
+        })
+        if in_price_1k is not None and out_price_1k is not None:
+            input_cost = (prompt_t / 1000.0) * in_price_1k
+            output_cost = (completion_t / 1000.0) * out_price_1k
+            total_cost = input_cost + output_cost
+            st.success(
+                f"Estimated cost ({currency}): {total_cost:.6f}  "
+                f"[input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={src}]"
+            )
+        else:
+            st.info("Pricing not configured. See repo README for configuration options.")
+
+    # Persist run artifact similar to CLI
+    safe_query = query.strip().replace(" ", "_")[:40]
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_filename = f"nl2sql_run_{safe_query}_{ts}.txt"
+    results_dir = os.path.join(ROOT, "RESULTS")
+    os.makedirs(results_dir, exist_ok=True)
+    run_summary = [
+        "========== NATURAL LANGUAGE QUERY ==========\n",
+        query + "\n\n",
+        "========== INTENT & ENTITIES ==========\n",
+        intent_entities + "\n\n",
+        "========== SQL GENERATION REASONING ==========\n",
+        reasoning + "\n\n",
+        "========== GENERATED SQL (RAW) ==========\n",
+        raw_sql + "\n\n",
+        "========== SANITIZED SQL (FOR EXECUTION) ==========\n",
+        sanitized_sql + "\n\n",
+    ]
+    try:
+        with open(os.path.join(results_dir, out_filename), "w") as f:
+            for line in run_summary:
+                f.write(line)
+        st.caption(f"Run log written to RESULTS/{out_filename}")
+    except Exception:
+        pass
