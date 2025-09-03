@@ -24,8 +24,20 @@ AQ-NEW-NL2SQL/
 │     ├─ nl2sql_flowchart.mmd
 │     ├─ nl2sql_sequence.mmd
 │     └─ nl2sql_flowchart.svg   # Auto-generated from the Mermaid flowchart
+├─ ui/
+│  └─ streamlit_app/
+│     ├─ app.py                 # Streamlit UI for NL→Intent→Reasoning→SQL→Results
+│     └─ README.md              # How to run the demo UI
+├─ agents_nl2sql/               # Experimental multi-agent NL2SQL demo
+│  ├─ graph.py
+│  ├─ llm.py
+│  ├─ run_demo.py               # Minimal runner for the agent graph
+│  ├─ state.py
+│  ├─ requirements.txt          # Extra deps for the agents demo (optional)
+│  └─ README.md
 ├─ RESULTS/                     # Saved outputs from runs (logs, SQL, results)
-│  └─ nl2sql_run_*.txt          # Timestamped run artifacts
+│  ├─ nl2sql_run_*.txt          # Timestamped run artifacts (CLI & UI)
+│  └─ nl2sql_run_*.json         # JSON sidecar with exact result rows (UI)
 ├─ nl2sql_main.py               # Main NL→SQL pipeline entrypoint (Azure OpenAI)
 ├─ old_main.py                  # Earlier prototype (kept for reference)
 ├─ schema_reader.py             # Reads/caches DB schema for prompting
@@ -33,7 +45,7 @@ AQ-NEW-NL2SQL/
 └─ README.md
 ```
 
-# NL2SQL-only Entrypoint
+# NL2SQL-only Entrypoint (CLI)
 
 This folder contains `nl2sql_main.py`, a focused version of the pipeline that implements only the NL→Intent→SQL flow. It mirrors the sequence and comments of `AQ-NEW-NL2SQL/main.py` but excludes any DAX functionality.
 
@@ -116,6 +128,39 @@ python nl2sql_main.py --query "For each region, list the top 5 companies by bala
 - `DATABASE_SETUP/`: SQL artifacts and `run_migrations.py` to set up/extend the Contoso FI sample.
 - `docs/`: Guides and Mermaid diagrams. The flowchart SVG is generated from Mermaid sources.
 - `RESULTS/`: Timestamped logs from pipeline runs; consider ignoring in `.gitignore` if you don’t want to commit them.
+
+## Streamlit UI (Demo)
+
+An interactive UI for the same NL→Intent→Reasoning→SQL→Results pipeline lives under `ui/streamlit_app/app.py`.
+
+Features
+- Clickable example questions (auto-parsed from `docs/CONTOSO-FI_EXAMPLE_QUESTIONS.txt` when present)
+- Sidebar controls:
+  - Environment status (checks Azure OpenAI and Azure SQL env vars)
+  - Refresh schema cache button (updates `DATABASE_SETUP/schema_cache.json`)
+  - Schema context preview
+- Main panel shows: Intent & Entities, optional Reasoning, Generated SQL (raw), Sanitized SQL, and Results table
+- Toggles: “Skip execution”, “Explain-only”, “No reasoning”
+- Exports: CSV and Excel for results, “Copy SQL” button to show copyable SQL
+- Logging: Writes a `.txt` log and a `.json` sidecar containing the exact result rows
+
+Run the UI
+```bash
+# Install repo requirements (includes Streamlit, pandas, etc.)
+python -m pip install -r requirements.txt
+
+# Start the Streamlit app
+streamlit run ui/streamlit_app/app.py
+```
+
+Notes
+- Ensure your `.env` (or shell env) contains the same variables listed under Prerequisites.
+- On macOS, installing Microsoft ODBC Driver 18 is required for SQL execution via pyodbc.
+- For faster file watching during development, the repo includes `watchdog`.
+
+Results artifacts from the UI
+- `RESULTS/nl2sql_run_<query>_<ts>.txt`: Includes the table-formatted SQL results and a token usage/cost section.
+- `RESULTS/nl2sql_run_<query>_<ts>.json`: Exact result rows as a JSON array for programmatic reuse.
 
 ## Database setup (optional)
 
@@ -222,4 +267,19 @@ In all cases, deployment-specific env vars take precedence over global env vars,
 Reference: Azure OpenAI pricing
 
 - https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/
+
+## Agents NL2SQL (experimental)
+
+An experimental multi-agent approach is provided in `agents_nl2sql/`. This is optional and separate from the main CLI and UI paths.
+
+Quick start
+```bash
+# Optional: install extra deps for the agents demo
+python -m pip install -r agents_nl2sql/requirements.txt
+
+# Run the demo
+python agents_nl2sql/run_demo.py
+```
+
+As this is experimental, APIs and behaviors may change; see `agents_nl2sql/README.md` for details.
 
