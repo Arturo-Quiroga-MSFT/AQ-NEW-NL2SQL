@@ -1,0 +1,37 @@
+========== NATURAL LANGUAGE QUERY ==========
+Show 20 covenants with covenant type, threshold, frequency, and status.
+
+========== INTENT & ENTITIES ==========
+- Intent: Retrieve a list of covenant records (view data)
+- Entities/Parameters:
+  - Entity/Table: covenants
+  - Selected fields: covenant_type, threshold, frequency, status
+  - Limit: 20
+  - Filters: none specified
+  - Sort: not specified
+  - Distinct: not specified
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: “covenants” maps to dbo.Covenant; fields map to CovenantType, Threshold, Frequency, Status.
+- Tables/Joins: Single-source from dbo.Covenant; no joins needed since requested fields are native to Covenant.
+- Aggregations: None required (simple row retrieval).
+- Filters: None (no WHERE clause specified). Will return any status/loan unless later constrained.
+- Order/Limit: Limit to 20 rows using a TOP 20 approach. No ORDER BY specified; note results are nondeterministic without an explicit sort. Add ORDER BY (e.g., CovenantId or CovenantType) if deterministic order is needed.
+- Assumptions: No distinct needed; include all statuses; no portfolio view necessary; no additional loan/company context required unless requested.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP (20)
+    c.CovenantType AS covenant_type,
+    c.Threshold AS threshold,
+    c.Frequency AS frequency,
+    c.Status AS status
+FROM dbo.Covenant AS c;
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP (20)
+    c.CovenantType AS covenant_type,
+    c.Threshold AS threshold,
+    c.Frequency AS frequency,
+    c.Status AS status
+FROM dbo.Covenant AS c;
+

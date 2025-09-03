@@ -1,0 +1,39 @@
+========== NATURAL LANGUAGE QUERY ==========
+Show 20 payment schedule entries (earliest DueDate first) with LoanNumber, PaymentNumber, and TotalDue.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "SELECT",
+  "entities": {
+    "target": "payment schedule entries",
+    "fields": ["LoanNumber", "PaymentNumber", "TotalDue"],
+    "order_by": [{"field": "DueDate", "direction": "ASC"}],
+    "limit": 20
+  }
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: “Payment schedule entries” → dbo.PaymentSchedule; LoanNumber → dbo.vw_LoanPortfolio.
+- Tables/Joins: Join dbo.PaymentSchedule ps to dbo.vw_LoanPortfolio lp on ps.LoanId = lp.LoanId.
+- Selected fields: lp.LoanNumber, ps.PaymentNumber, ps.TotalDue (also include ps.DueDate for ordering).
+- Aggregations: None required.
+- Filters: None explicitly requested; ensure ps.DueDate is not null. If only outstanding items are desired, add ps.PaidFlag = 0 or ps.Status = 'Scheduled'.
+- Order/Limit: Order by ps.DueDate ASC; return first 20 rows (TOP 20 with ORDER BY in T-SQL).
+- Assumptions: No currency conversion; include all loans and currencies; rely on vw_LoanPortfolio per guideline for loan attributes; no date range unless specified.
+
+========== GENERATED SQL (RAW) ==========
+SELECT vp.LoanNumber, ps.PaymentNumber, ps.TotalDue
+FROM dbo.PaymentSchedule AS ps
+INNER JOIN dbo.vw_LoanPortfolio AS vp
+    ON vp.LoanId = ps.LoanId
+ORDER BY ps.DueDate ASC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT vp.LoanNumber, ps.PaymentNumber, ps.TotalDue
+FROM dbo.PaymentSchedule AS ps
+INNER JOIN dbo.vw_LoanPortfolio AS vp
+    ON vp.LoanId = ps.LoanId
+ORDER BY ps.DueDate ASC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+

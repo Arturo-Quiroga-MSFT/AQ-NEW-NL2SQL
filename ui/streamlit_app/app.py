@@ -108,17 +108,16 @@ query = st.text_area(
     height=80,
 )
 
-run_cols = st.columns([1, 1, 5])
-with run_cols[0]:
+# Right-aligned controls row: large spacer + controls
+controls_cols = st.columns([6, 2, 2, 2, 2])
+with controls_cols[1]:
     run_clicked = st.button("Run", type="primary")
-with run_cols[1]:
-    no_exec = st.toggle("Skip execution", value=False, help="Generate SQL but do not run it")
-with st.container():
-    togg_cols = st.columns([1, 1, 6])
-    with togg_cols[0]:
-        explain_only = st.toggle("Explain-only", value=False, help="Show intent and reasoning only; skip SQL generation and execution")
-    with togg_cols[1]:
-        no_reasoning = st.toggle("No reasoning", value=False, help="Skip the reasoning/plan step")
+with controls_cols[2]:
+    no_exec = st.toggle("⏭️ Skip exec", value=False, help="Generate SQL but do not run it", key="skip_exec_toggle")
+with controls_cols[3]:
+    explain_only = st.toggle("📝 Explain-only", value=False, help="Show intent and reasoning only; skip SQL generation and execution", key="explain_only_toggle")
+with controls_cols[4]:
+    no_reasoning = st.toggle("🧠 No reasoning", value=False, help="Skip the reasoning/plan step", key="no_reasoning_toggle")
 
 if run_clicked:
     # Reset token usage counters for a new run
