@@ -60,6 +60,23 @@ def _load_examples() -> List[str]:
             "Show the 10 most recent loans by OriginationDate.",
             "For each company with loans, compute total principal amount; show the top 20 companies by total principal.",
             "For each region, list the top 5 companies by total principal amount.",
+            "List all currencies and their symbols available in the database.",
+            "Identify loans with upcoming covenant tests in the next 30 days.",
+            "For each loan, compute the remaining balance and show the top 10 by balance.",
+            "By region, list the top 10 companies by total outstanding loan amount.",
+            "Show all companies with more than 3 active loans.",
+            "List all collateral items valued above 1,000,000.",
+            "For each customer profile, show the average loan interest rate.",
+            "Show the total number of loans and total principal by risk category.",
+            "List the 5 most common loan purposes and their total amounts.",
+            "For each region, show the average loan-to-value ratio.",
+            "Find all loans with overdue payments and their associated companies.",
+            "Show the distribution of loan amounts by currency.",
+            "List all companies in the Americas region with loans above 5,000,000.",
+            "For each company, list the most recent loan and its amount.",
+            "Show all loans with fixed interest rates above 7%.",
+            "List the top 10 customers by total collateral value.",
+            "For each region, show the number of loans and the sum of principal amounts.",
         ]
     # Limit to a reasonable number for buttons
     return examples[:12]
