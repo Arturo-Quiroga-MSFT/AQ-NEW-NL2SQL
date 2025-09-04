@@ -67,3 +67,5 @@ logs/
 create*.sh
 
 credentials.json
+
+teradata-customer-intelligence-framework.png

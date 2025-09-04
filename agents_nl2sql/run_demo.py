@@ -1,9 +1,22 @@
 from __future__ import annotations
+import datetime
+import decimal
+def convert_dates(obj):
+    """Recursively convert date/datetime/decimal objects in dicts/lists to serializable types for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: convert_dates(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_dates(i) for i in obj]
+    elif isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, decimal.Decimal):
+        return float(obj)
+    else:
+        return obj
 import argparse
 import os
 import json
-from datetime import datetime
-from .state import Flags
+from agents_nl2sql.state import Flags
 from .nodes import ingest, schema_ctx, intent, sql_gen, sanitize, execute
 from .nodes import reasoning
 
@@ -85,7 +98,7 @@ def main() -> int:
         # Build a safe filename stem from the query
         slug = "".join(ch if ch.isalnum() or ch in (" ", "_", "-") else "_" for ch in state.user_query).strip()
         slug = "_".join(slug.split())
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         base = f"agents_nl2sql_run_{slug}_{ts}"
 
         # Cost computation if pricing available
@@ -109,7 +122,7 @@ def main() -> int:
         lines = []
         lines.append("=== NL2SQL Agents Demo Run ===")
         lines.append(f"Run ID: {state.run_id}")
-        lines.append(f"Started: {datetime.fromtimestamp(state.started_at).isoformat()}")
+        lines.append(f"Started: {datetime.datetime.fromtimestamp(state.started_at).isoformat()}")
         lines.append("")
         lines.append(f"Query: {state.user_query}")
         lines.append(f"Flags: no_exec={state.flags.no_exec}, no_reasoning={state.flags.no_reasoning}, explain_only={state.flags.explain_only}, refresh_schema={state.flags.refresh_schema}")
@@ -146,8 +159,10 @@ def main() -> int:
         rows = state.execution_result.rows or []
         if rows:
             json_path = os.path.join("RESULTS", f"{base}.json")
+            # Convert all date/datetime objects to strings before dumping
+            rows_serializable = convert_dates(rows)
             with open(json_path, "w", encoding="utf-8") as jf:
-                json.dump(rows, jf, ensure_ascii=False, indent=2)
+                json.dump(rows_serializable, jf, ensure_ascii=False, indent=2)
             print(f"\nArtifacts: wrote {os.path.basename(txt_path)} and {os.path.basename(json_path)} to RESULTS/")
         else:
             print(f"\nArtifact: wrote {os.path.basename(txt_path)} to RESULTS/")
