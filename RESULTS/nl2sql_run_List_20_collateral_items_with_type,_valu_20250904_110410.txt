@@ -1,0 +1,77 @@
+========== NATURAL LANGUAGE QUERY ==========
+List 20 collateral items with type, value, valuation date, and the related LoanNumber.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "retrieve_records",
+  "target_entity": "Collateral",
+  "result_fields": [
+    {"entity": "Collateral", "field": "Type"},
+    {"entity": "Collateral", "field": "Value"},
+    {"entity": "Collateral", "field": "ValuationDate"},
+    {"entity": "Loan", "field": "LoanNumber", "relationship": "Collateral -> Loan"}
+  ],
+  "filters": [],
+  "limit": 20,
+  "order_by": null,
+  "distinct": false,
+  "relationships": [
+    {
+      "from_entity": "Collateral",
+      "to_entity": "Loan",
+      "type": "many-to-one",
+      "purpose": "Include LoanNumber for each collateral item"
+    }
+  ]
+}
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP (20)
+    c.CollateralType AS Type,
+    c.ValueAmount AS Value,
+    c.ValuationDate,
+    l.LoanNumber
+FROM dbo.Collateral AS c
+INNER JOIN dbo.Loan AS l
+    ON l.LoanId = c.LoanId
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP (20)
+    c.CollateralType AS Type,
+    c.ValueAmount AS Value,
+    c.ValuationDate,
+    l.LoanNumber
+FROM dbo.Collateral AS c
+INNER JOIN dbo.Loan AS l
+    ON l.LoanId = c.LoanId
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Type        | Value       | ValuationDate | LoanNumber
+------------+-------------+---------------+-----------
+Receivables | 13000000.00 | 2025-02-27    | TEST-00001
+Receivables | 32500000.00 | 2025-02-27    | US-00001  
+Receivables | 32500000.00 | 2025-02-27    | US-00002  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00001  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00002  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00003  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00004  
+Securities  | 25300000.00 | 2025-02-27    | AS-00001  
+Securities  | 25300000.00 | 2025-02-27    | AS-00002  
+Securities  | 25300000.00 | 2025-02-27    | AS-00003  
+Securities  | 25300000.00 | 2025-02-27    | AS-00004  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00001  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00002  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00003  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00004  
+Guarantee   | 12500000.00 | 2025-02-27    | US-00002  
+Guarantee   | 9000000.00  | 2025-02-27    | EU-00003  
+Guarantee   | 11000000.00 | 2025-02-27    | AS-00002  
+Guarantee   | 6000000.00  | 2025-02-27    | AF-00001  
+Guarantee   | 6000000.00  | 2025-02-27    | AF-00004  
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1296
+Completion tokens: 1649
+Total tokens: 2945
+Estimated cost (USD): 0.018110  [input=0.001620, output=0.016490; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
