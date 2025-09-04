@@ -348,10 +348,19 @@ if run_clicked:
         # If we have results, also write JSON sidecar for programmatic reuse
         sidecar_msg = ""
         if result_rows is not None:
+            import datetime as _dt
+            def _json_safe(obj):
+                if isinstance(obj, (list, tuple)):
+                    return [_json_safe(x) for x in obj]
+                if isinstance(obj, dict):
+                    return {k: _json_safe(v) for k, v in obj.items()}
+                if isinstance(obj, (_dt.date, _dt.datetime)):
+                    return obj.isoformat()
+                return obj
             json_name = out_filename.replace(".txt", ".json")
             json_path = os.path.join(results_dir, json_name)
             with open(json_path, "w", encoding="utf-8") as jf:
-                json.dump(result_rows, jf, ensure_ascii=False, indent=2)
+                json.dump(_json_safe(result_rows), jf, ensure_ascii=False, indent=2)
             sidecar_msg = f"; JSON rows written to RESULTS/{json_name}"
         # Upload to Azure Blob Storage if possible
         AZURE_BLOB_CONN = os.getenv("AZURE_BLOB_CONNECTION_STRING")
