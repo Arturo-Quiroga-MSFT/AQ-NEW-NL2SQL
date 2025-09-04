@@ -9,7 +9,6 @@ az containerapp stop \
   --resource-group "$RESOURCE_GROUP"
 
 sleep 10
-
-ez containerapp start \
+az containerapp start \
   --name "$CONTAINER_APP" \
   --resource-group "$RESOURCE_GROUP"

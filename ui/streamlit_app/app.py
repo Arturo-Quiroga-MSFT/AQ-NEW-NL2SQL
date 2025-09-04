@@ -1,11 +1,31 @@
 
+"""Streamlit UI for the Contoso-FI NL2SQL Demo.
+
+High-level flow when the user presses Run:
+ 1. Reset token counters.
+ 2. Parse the natural language question into structured intent/entities.
+ 3. (Optional) Generate a reasoning / high-level plan explanation.
+ 4. Generate raw SQL from the intent.
+ 5. Sanitize / extract runnable SQL (adds warnings or modifications if needed).
+ 6. (Optional) Execute SQL against Azure SQL and display tabular results.
+ 7. Display token usage + estimated cost (based on pricing map).
+ 8. Persist a detailed run log (mirrors CLI log format) locally and optionally upload
+    to Azure Blob Storage for durable retrieval / sharing.
+
+This file purposefully keeps orchestration logic inline for clarity; most heavy
+LLM logic lives in `nl2sql_main.py` and supporting modules.
+"""
+
 import os
 import sys
 import json
 from datetime import datetime
 from typing import List, Dict, Any
 
-# Azure Blob Storage
+###############################################################################
+# Optional Azure Blob Storage integration (for uploading run logs)
+# If azure-storage-blob isn't installed, uploads are simply skipped.
+###############################################################################
 import tempfile
 from urllib.parse import quote as urlquote
 try:
@@ -17,7 +37,7 @@ except ImportError:
 import streamlit as st
 from dotenv import load_dotenv
 
-# Ensure repo root on sys.path so we can import pipeline modules
+# Ensure repository root is on sys.path so we can import project modules directly
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -26,19 +46,21 @@ load_dotenv()
 
 # Import pipeline helpers from root modules
 from nl2sql_main import (
-    parse_nl_query,
-    generate_reasoning,
-    generate_sql,
-    extract_and_sanitize_sql,
-    _TOKEN_USAGE,
-    _get_pricing_for_deployment,
-    DEPLOYMENT_NAME,
-    _format_table,
+    parse_nl_query,             # Natural language → structured intent/entities
+    generate_reasoning,          # Optional reasoning plan (explainability)
+    generate_sql,                # Intent/entities → candidate SQL (raw)
+    extract_and_sanitize_sql,    # Cleans / warns / final SQL to execute
+    _TOKEN_USAGE,                # Shared mutable token usage accumulator
+    _get_pricing_for_deployment, # Lookup per-1K token pricing for current model
+    DEPLOYMENT_NAME,             # Active Azure OpenAI deployment name
+    _format_table,               # Utility for fixed-width text table formatting
 )
 from schema_reader import refresh_schema_cache, get_sql_database_schema_context
 from sql_executor import execute_sql_query
 
-# ------------ UI Config ------------
+# -----------------------------------------------------------------------------
+# Streamlit Page Configuration
+# -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="NL2SQL Demo",
     page_icon="🧠",
@@ -46,6 +68,12 @@ st.set_page_config(
 )
 
 def _load_examples() -> List[str]:
+    """Load example NL questions for quick-access buttons.
+
+    Primary source: docs/CONTOSO-FI_EXAMPLE_QUESTIONS.txt (if present).
+    Fallback: Hard-coded curated list for discoverability.
+    Only the first 12 are returned to avoid overcrowding the UI.
+    """
     path = os.path.join(ROOT, "docs", "CONTOSO-FI_EXAMPLE_QUESTIONS.txt")
     examples: List[str] = []
     # Debug: print resolved path and file existence
@@ -93,7 +121,9 @@ def _load_examples() -> List[str]:
 
 EXAMPLE_QUESTIONS: List[str] = _load_examples()
 
-# Sidebar controls
+# -----------------------------------------------------------------------------
+# Sidebar: Environment status, schema refresh, schema preview
+# -----------------------------------------------------------------------------
 with st.sidebar:
     st.title("NL2SQL Demo UI")
     st.caption("Natural Language → Intent → Reasoning → SQL → Results")
@@ -112,6 +142,7 @@ with st.sidebar:
         st.write(f"Azure OpenAI Endpoint {ok(endpoint)}")
         st.write(f"Deployment {ok(dep)}")
         st.write(f"SQL Server {ok(sql_server)} | DB {ok(sql_db)} | User {ok(sql_user)} | Password {ok(sql_pwd)}")
+    # Manual schema cache refresh (forces re-reading DB metadata / cached file)
     if st.button("🔁 Refresh schema cache"):
         try:
             path = refresh_schema_cache()
@@ -123,7 +154,9 @@ with st.sidebar:
         st.code(ctx[:4000], language="text")
 
 
-# Main layout
+# -----------------------------------------------------------------------------
+# Main page header & descriptive blurb
+# -----------------------------------------------------------------------------
 st.markdown("""
 <h1 style='text-align: left;'>Contoso-FI Natural Language to SQL Analytics</h1>
 <p style='font-size:1.1em;'>
@@ -133,7 +166,9 @@ This app lets you explore a realistic banking/loans database using natural langu
 </p>
 """, unsafe_allow_html=True)
 
-# Example questions pills
+# -----------------------------------------------------------------------------
+# Example question buttons (quick inserts into the query box)
+# -----------------------------------------------------------------------------
 st.markdown("### Examples")
 cols = st.columns(min(3, len(EXAMPLE_QUESTIONS)))
 for i, q in enumerate(EXAMPLE_QUESTIONS):
@@ -141,14 +176,22 @@ for i, q in enumerate(EXAMPLE_QUESTIONS):
         if st.button(q, key=f"ex_{i}"):
             st.session_state["input_query"] = q
 
-# Input area
+# -----------------------------------------------------------------------------
+# User query input area
+# -----------------------------------------------------------------------------
 query = st.text_area(
     "Enter your question",
     value=st.session_state.get("input_query", "Show the 10 most recent loans"),
     height=80,
 )
 
-# Right-aligned controls row: large spacer + controls
+# -----------------------------------------------------------------------------
+# Control toggles:
+#  - Run: Execute full pipeline
+#  - Skip exec: Stop after SQL generation
+#  - Explain-only: Intent + reasoning (no SQL)
+#  - No reasoning: Skip reasoning step (faster)
+# -----------------------------------------------------------------------------
 controls_cols = st.columns([6, 2, 2, 2, 2])
 with controls_cols[1]:
     run_clicked = st.button("Run", type="primary")
@@ -160,7 +203,11 @@ with controls_cols[4]:
     no_reasoning = st.toggle("🧠 No reasoning", value=False, help="Skip the reasoning/plan step", key="no_reasoning_toggle")
 
 if run_clicked:
-    # Reset token usage counters for a new run
+    # -------------------------------------------------------------------------
+    # PIPELINE ORCHESTRATION
+    # -------------------------------------------------------------------------
+    # Reset token usage counters for a new run. (Shared dict mutated by
+    # lower-level functions called during LLM interactions.)
     _TOKEN_USAGE["prompt"] = 0
     _TOKEN_USAGE["completion"] = 0
     _TOKEN_USAGE["total"] = 0
@@ -171,7 +218,7 @@ if run_clicked:
         st.warning("Please enter a question.")
         st.stop()
 
-    # Orchestrate pipeline
+    # ---- Step 1: NL parsing / intent extraction
     with st.spinner("Extracting intent and entities..."):
         intent_entities = parse_nl_query(query)
 
@@ -179,12 +226,14 @@ if run_clicked:
     st.write(intent_entities)
 
     reasoning = None
+    # ---- Step 2: Optional reasoning (skip if user disabled)
     if not no_reasoning or explain_only:
         with st.spinner("Generating reasoning plan..."):
             reasoning = generate_reasoning(intent_entities)
         with st.expander("Reasoning (high-level plan)", expanded=True):
             st.write(reasoning)
 
+    # ---- Step 3: Raw SQL generation
     if not explain_only:
         with st.spinner("Generating SQL..."):
             raw_sql = generate_sql(intent_entities)
@@ -193,12 +242,14 @@ if run_clicked:
         st.markdown("### Generated SQL (raw)")
         st.code(raw_sql, language="sql")
 
+    # ---- Step 4: SQL sanitization / extraction (adds warnings, ensures safety)
     if not explain_only:
         sanitized_sql = extract_and_sanitize_sql(raw_sql)
         if sanitized_sql != raw_sql:
             st.markdown("### Sanitized SQL (for execution)")
             st.code(sanitized_sql, language="sql")
 
+    # ---- Step 5: Execute final SQL if not skipped
     if not explain_only and not no_exec:
         with st.spinner("Executing SQL against Azure SQL Database..."):
             try:
@@ -247,7 +298,7 @@ if run_clicked:
     else:
         st.info("Execution skipped.")
 
-    # Token usage and cost
+    # ---- Step 6: Token usage + estimated cost panel
     from nl2sql_main import _TOKEN_USAGE as TOK
     in_price_1k, out_price_1k, src, currency = _get_pricing_for_deployment(DEPLOYMENT_NAME)
     prompt_t = TOK["prompt"]
@@ -272,7 +323,8 @@ if run_clicked:
         else:
             st.info("Pricing not configured. See repo README for configuration options.")
 
-    # Persist run artifact similar to CLI
+    # ---- Step 7: Persist run artifact (human-readable log + optional JSON rows)
+    # Mirrors CLI logging format: sections separated by banners.
     safe_query = query.strip().replace(" ", "_")[:40]
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_filename = f"nl2sql_run_{safe_query}_{ts}.txt"
@@ -336,8 +388,11 @@ if run_clicked:
             f"Total tokens: {total_t_log}\n",
             "[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n\n",
         ]
-    blob_url = None
-    blob_error = None
+    blob_url = None          # Public URL (if uploaded successfully)
+    blob_error = None        # Capture upload exception message for user feedback
+    # NOTE: Adjust these defaults if deploying to a different storage account
+    # or container. The connection string is sourced from env var
+    # AZURE_BLOB_CONNECTION_STRING.
     BLOB_CONTAINER = "nl2sql"
     STORAGE_ACCOUNT = "r2d2nl2sql"
     try:
