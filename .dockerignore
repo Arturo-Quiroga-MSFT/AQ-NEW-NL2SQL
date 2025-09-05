@@ -1,0 +1,43 @@
+# Ignore Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtual environments
+venv/
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Local results / backups / artifacts
+BACKUPS/
+RESULTS/
+agents_nl2sql/results/
+*.log
+.diagrams-cache
+
+# Credentials / secrets (do NOT bake into image)
+credentials.json
+
+# Large / non-runtime content
+docs/
+MSSQL_Extension_for_vscode/
+star_schema_poc/
+DATABASE_SETUP/migrations/
+DATABASE_SETUP/schema_cache.json
+NL2SQL_Demo.ipynb
+
+# Node / frontend leftovers
+node_modules/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# VSCode / IDE
+.vscode/
+.idea/

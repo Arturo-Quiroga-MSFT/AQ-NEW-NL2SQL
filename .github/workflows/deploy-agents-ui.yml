@@ -1,0 +1,61 @@
+name: Deploy Agents NL2SQL UI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # for OIDC Azure login
+  contents: read
+
+env:
+  ACR_NAME: aqnewacr007
+  RESOURCE_GROUP: AI-FOUNDRY-RG
+  CONTAINER_APP_NAME: agents-nl2sql-streamlit-app
+  IMAGE_REPOSITORY: nl2sql/agents-ui
+  # Using commit SHA only (user chose no latest tag)
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Derive image tag
+        id: vars
+        run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      - name: ACR Remote Build (az acr build)
+        run: |
+          az acr build \
+            --registry $ACR_NAME \
+            --image ${IMAGE_REPOSITORY}:${{ steps.vars.outputs.TAG }} \
+            --file Dockerfile.agents .
+
+      - name: Update Container App revision
+        run: |
+          FULL_IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_REPOSITORY}:${{ steps.vars.outputs.TAG }}"
+          echo "Updating $CONTAINER_APP_NAME to image $FULL_IMAGE"
+          az containerapp update \
+            --name $CONTAINER_APP_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --image $FULL_IMAGE
+
+      - name: Show Container App URL
+        run: |
+          az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv
+
+      - name: Basic Health Probe (optional)
+        run: |
+          FQDN=$(az containerapp show -n $CONTAINER_APP_NAME -g $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv)
+          echo "Probing https://$FQDN"
+          curl -L --max-time 20 --retry 3 --retry-delay 5 --fail https://$FQDN || exit 1
