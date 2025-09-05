@@ -13,6 +13,7 @@ import sys
 import streamlit as st
 from datetime import datetime
 import pandas as pd
+import time
 from dotenv import load_dotenv
 
 # Ensure repo root is on sys.path
@@ -107,6 +108,7 @@ no_reasoning = st.toggle("No reasoning", value=False, help="Skip the reasoning/p
 from agents_nl2sql.nodes import intent, sql_gen, sanitize, execute
 
 if run_clicked:
+    start_time = time.time()
     flags = Flags(
         no_exec=no_exec,
         no_reasoning=no_reasoning,
@@ -149,11 +151,32 @@ if run_clicked:
         st.markdown("### Results Preview")
         st.code(state.execution_result.preview or "", language="text")
         if state.execution_result.rows:
-            st.dataframe(state.execution_result.rows, use_container_width=True)
+            st.dataframe(state.execution_result.rows, width='stretch')
     elif explain_only:
         st.info("Explain-only mode: SQL generation and execution skipped.")
     else:
         st.info("Execution skipped.")
+
+    # --- Show pipeline execution time ---
+    elapsed = time.time() - start_time
+    st.success(f"Total pipeline execution time: {elapsed:.2f} seconds")
+
+    # --- Save results to a text file ---
+    if not explain_only and state.execution_result.rows:
+        results_dir = os.path.join(ROOT, "agents_nl2sql", "results")
+        os.makedirs(results_dir, exist_ok=True)
+        safe_query = query.strip().replace(" ", "_")[:40]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_filename = f"agents_ui_run_{safe_query}_{ts}.txt"
+        txt_path = os.path.join(results_dir, out_filename)
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(f"Query: {query}\n\n")
+            f.write(f"Generated SQL:\n{state.sql_raw or ''}\n\n")
+            f.write(f"Sanitized SQL:\n{state.sql_sanitized or ''}\n\n")
+            f.write("Results Preview:\n")
+            f.write(state.execution_result.preview or "")
+            f.write(f"\nTotal pipeline execution time: {elapsed:.2f} seconds\n")
+        st.info(f"Results saved to {txt_path}")
 
     # --- Errors ---
     if state.errors:
@@ -161,4 +184,4 @@ if run_clicked:
 
     # --- Debug: Show full agent state ---
     with st.expander("Agent State (Debug)", expanded=False):
-        st.json(state.dict())
+        st.json(state.model_dump())
