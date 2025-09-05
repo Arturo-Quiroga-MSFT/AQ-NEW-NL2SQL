@@ -57,7 +57,10 @@ def run(state: GraphState) -> GraphState:
             if attempt > 0:
                 prompt += "\nPrevious attempt invalid or empty. Provide 5-8 bullets now, follow rules strictly."
             messages = [{"role": "user", "content": prompt.strip()}]
-            content, usage = azure_chat_completions(messages)
+            content, usage = azure_chat_completions(
+                messages,
+                max_completion_tokens=state.reasoning_max_tokens if state.reasoning_max_tokens else None,
+            )
             updated = accumulate_usage(usage, state.token_usage.model_dump())
             state.token_usage.prompt = updated.get("prompt", 0)
             state.token_usage.completion = updated.get("completion", 0)

@@ -46,6 +46,11 @@ class GraphState(BaseModel):
     sql_sanitized: str = ""
     execution_result: ExecutionResult = Field(default_factory=ExecutionResult)
 
+    # Per-stage adjustable token caps (None => use global default)
+    intent_max_tokens: int | None = None
+    reasoning_max_tokens: int | None = None
+    sql_max_tokens: int | None = None
+
     # Azure OpenAI environment validation
     azure_env_valid: bool = True
     azure_env_messages: list[str] = Field(default_factory=list)

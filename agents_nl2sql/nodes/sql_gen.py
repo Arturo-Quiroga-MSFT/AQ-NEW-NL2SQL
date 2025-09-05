@@ -44,7 +44,10 @@ def run(state: GraphState) -> GraphState:
             state.user_query,
         )
         messages = [{"role": "user", "content": prompt.strip()}]
-        content, usage = azure_chat_completions(messages)
+        content, usage = azure_chat_completions(
+            messages,
+            max_completion_tokens=state.sql_max_tokens if state.sql_max_tokens else None,
+        )
         # track usage
         updated = accumulate_usage(usage, state.token_usage.model_dump())
         state.token_usage.prompt = updated.get("prompt", 0)

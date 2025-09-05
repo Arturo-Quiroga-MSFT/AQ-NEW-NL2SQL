@@ -15,16 +15,16 @@ from datetime import datetime
 import pandas as pd
 import time
 from dotenv import load_dotenv
-from agents_nl2sql.llm import get_pricing_for_deployment, DEPLOYMENT_NAME
 
-# Ensure repo root is on sys.path
+# Ensure repo root is on sys.path BEFORE importing package modules
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 load_dotenv()
 
-# Import agent pipeline helpers
+# Now safe to import internal modules
+from agents_nl2sql.llm import get_pricing_for_deployment, DEPLOYMENT_NAME
 from agents_nl2sql.run_demo import main as agent_main
 from agents_nl2sql.nodes import schema_ctx
 from agents_nl2sql.state import Flags, GraphState
@@ -162,6 +162,27 @@ no_exec = st.toggle("Skip exec", value=False, help="Generate SQL but do not run 
 explain_only = st.toggle("Explain-only", value=False, help="Show intent and reasoning only; skip SQL generation and execution", key="explain_only_toggle")
 no_reasoning = st.toggle("No reasoning", value=False, help="Skip the reasoning/plan step", key="no_reasoning_toggle")
 
+# --- Adjustable Token Caps ---
+with st.expander("Model token caps (per stage)", expanded=False):
+    st.caption("Set per-stage completion token ceilings. Leave at defaults for full 8192 global cap.")
+    intent_cap = st.slider("Intent max completion tokens", 64, 8192, st.session_state.get("intent_cap", 1024), step=64, key="intent_cap_slider")
+    reasoning_cap = st.slider("Reasoning max completion tokens", 128, 8192, st.session_state.get("reasoning_cap", 1024), step=64, key="reasoning_cap_slider")
+    sql_cap = st.slider("SQL generation max completion tokens", 256, 8192, st.session_state.get("sql_cap", 2048), step=64, key="sql_cap_slider")
+    # Persist selections
+    st.session_state["intent_cap"] = intent_cap
+    st.session_state["reasoning_cap"] = reasoning_cap
+    st.session_state["sql_cap"] = sql_cap
+    # Reset button
+    if st.button("Reset to defaults", key="reset_token_caps"):
+        defaults = {"intent_cap": 1024, "reasoning_cap": 1024, "sql_cap": 2048}
+        for k, v in defaults.items():
+            st.session_state[k] = v
+        # Also reset slider keys to reflect immediately
+        st.session_state["intent_cap_slider"] = defaults["intent_cap"]
+        st.session_state["reasoning_cap_slider"] = defaults["reasoning_cap"]
+        st.session_state["sql_cap_slider"] = defaults["sql_cap"]
+        st.experimental_rerun()
+
 from agents_nl2sql.nodes import intent, reasoning, sql_gen, sanitize, execute
 
 if run_clicked:
@@ -172,7 +193,14 @@ if run_clicked:
         explain_only=explain_only,
         refresh_schema=False,
     )
-    state = GraphState(user_query=query, flags=flags, question_category=category)
+    state = GraphState(
+        user_query=query,
+        flags=flags,
+        question_category=category,
+        intent_max_tokens=intent_cap if intent_cap else None,
+        reasoning_max_tokens=reasoning_cap if reasoning_cap else None,
+        sql_max_tokens=sql_cap if sql_cap else None,
+    )
 
     # --- Step 1: Schema context ---
     with st.spinner("Building schema context..."):
@@ -268,6 +296,11 @@ if run_clicked:
     st.markdown("#### Run Metrics")
     st.write(f"Intent parse attempts: {getattr(state, 'intent_parse_attempts', 'n/a')}")
     st.write(f"Reasoning attempts: {getattr(state, 'reasoning_attempts', 'n/a')}")
+    # Effective caps display
+    eff_intent = state.intent_max_tokens if state.intent_max_tokens else "global"
+    eff_reasoning = state.reasoning_max_tokens if state.reasoning_max_tokens else "global"
+    eff_sql = state.sql_max_tokens if state.sql_max_tokens else "global"
+    st.write(f"Token caps (intent / reasoning / SQL): {eff_intent} / {eff_reasoning} / {eff_sql} (global default=8192)")
 
     # --- Token & Cost Panel (mirrors legacy UI style) ---
     tok_prompt = state.token_usage.prompt

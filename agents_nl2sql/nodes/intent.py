@@ -80,7 +80,10 @@ def run(state: GraphState) -> GraphState:
         # Always produce at least a plain summary first (guarantees non-null intent)
         plain_prompt = PLAIN_INTENT_PROMPT.format(input=state.user_query)
         messages_plain = [{"role": "user", "content": plain_prompt.strip()}]
-        plain_content, usage_plain = azure_chat_completions(messages_plain)
+        plain_content, usage_plain = azure_chat_completions(
+            messages_plain,
+            max_completion_tokens=state.intent_max_tokens if state.intent_max_tokens else None,
+        )
         updated = accumulate_usage(usage_plain, state.token_usage.model_dump())
         state.token_usage.prompt = updated.get("prompt", 0)
         state.token_usage.completion = updated.get("completion", 0)
@@ -97,7 +100,10 @@ def run(state: GraphState) -> GraphState:
         # Try structured JSON enrichment
         struct_prompt = INTENT_PROMPT_TEXT.format(input=state.user_query)
         messages_struct = [{"role": "user", "content": struct_prompt.strip()}]
-        struct_content, usage_struct = azure_chat_completions(messages_struct)
+        struct_content, usage_struct = azure_chat_completions(
+            messages_struct,
+            max_completion_tokens=state.intent_max_tokens if state.intent_max_tokens else None,
+        )
         updated2 = accumulate_usage(usage_struct, state.token_usage.model_dump())
         state.token_usage.prompt = updated2.get("prompt", 0)
         state.token_usage.completion = updated2.get("completion", 0)
