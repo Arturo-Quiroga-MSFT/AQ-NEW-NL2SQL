@@ -23,16 +23,23 @@ def inspect_database(cursor) -> SchemaSpec:
     columns_by_table: Dict[str, List[Column]] = {}
     for tname in table_rows:
         cursor.execute(
-            "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
+            "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, NUMERIC_PRECISION, NUMERIC_SCALE "
+            "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? ORDER BY ORDINAL_POSITION",
             (tname,),
         )
         cols: List[Column] = []
-        for col_name, data_type, is_nullable in cursor.fetchall():
-            dtype = _normalize_type(data_type)
+        for col_name, data_type, is_nullable, num_p, num_s in cursor.fetchall():
+            # Reconstruct DECIMAL precision/scale if available
+            dt_norm = data_type.upper()
+            if dt_norm in ("DECIMAL", "NUMERIC"):
+                if num_p is not None and num_s is not None:
+                    dt_norm = f"DECIMAL({int(num_p)},{int(num_s)})"
+            dtype = _normalize_type(dt_norm)
             nullable = (is_nullable == "YES")
             try:
                 cols.append(Column(name=col_name.lower(), type=dtype, nullable=nullable))
             except Exception:
+                # Extend: silently skip unsupported types
                 pass
         columns_by_table[tname] = cols
 
@@ -89,7 +96,15 @@ def inspect_database(cursor) -> SchemaSpec:
         if tname.startswith("dim_"):
             dims.append(Dimension(name=tname, surrogate_key=None, columns=cols, indexes=indexes_by_table.get(tname, [])))
         elif tname.startswith("fact_"):
-            facts.append(Fact(name=tname, grain=None, columns=cols, foreign_keys=fks_map.get(tname, []), indexes=indexes_by_table.get(tname, [])))
+            # Heuristic: classify DECIMAL(*) columns (not *_id, not *_key, not date) as measures
+            fact_measures: List[Column] = []
+            fact_cols: List[Column] = []
+            for c in cols:
+                if c.type.startswith("DECIMAL") and not (c.name.endswith("_id") or c.name.endswith("_key") or c.name.endswith("date")):
+                    fact_measures.append(c)
+                else:
+                    fact_cols.append(c)
+            facts.append(Fact(name=tname, grain=None, columns=fact_cols, measures=fact_measures, foreign_keys=fks_map.get(tname, []), indexes=indexes_by_table.get(tname, [])))
     return SchemaSpec(version=1, warehouse=None, entities=Entities(dimensions=dims, facts=facts))
 
 
