@@ -34,8 +34,26 @@ st.set_page_config(
     layout="wide",
 )
 
+
+# --- App purpose and DB summary ---
 st.title("Agents NL2SQL Demo UI")
 st.caption("Natural Language → Agents → SQL → Results")
+st.markdown("""
+**Welcome!** This app demonstrates an agent-based pipeline for translating natural language questions into SQL queries and running them live against the Contoso-FI demo database.
+
+**What can you do?**
+- Ask questions about loans, companies, collateral, covenants, payments, risk, and more.
+- See how each agent (intent extraction, SQL generation, etc.) works step by step.
+- View, download, and analyze results instantly.
+
+**About the demo database:**
+- **Tables:** Loans, Companies, Collateral, Covenants, Payments, Risk Metrics, Currencies, Regions, and more.
+- **Example questions:** Portfolio analysis, top companies, regional breakdowns, risk metrics, overdue payments, and more.
+- **Schema highlights:**
+    - `dbo.vw_LoanPortfolio`: Denormalized view for portfolio-style queries
+    - `dbo.Loan`, `dbo.Company`, `dbo.Collateral`, `dbo.PaymentSchedule`, `dbo.Covenant`, `ref.Currency`, `ref.Region`, etc.
+    - Relationships between loans, companies, collateral, and reference data
+""")
 
 # Sidebar: schema cache refresh
 with st.sidebar:
@@ -54,44 +72,48 @@ with st.sidebar:
 
 
 # --- Sample questions for quick access ---
+
+
+# Sample questions with categories
 SAMPLE_QUESTIONS = [
-    "Show the 10 most recent loans by OriginationDate.",
-    "For each company with loans, compute total principal amount; show the top 20 companies by total principal.",
-    "For each region, list the top 5 companies by total principal amount.",
-    "List all currencies and their symbols available in the database.",
-    "Identify loans with upcoming covenant tests in the next 30 days.",
-    "For each loan, compute the remaining balance and show the top 10 by balance.",
-    "By region, list the top 10 companies by total outstanding loan amount.",
-    "Show all companies with more than 3 active loans.",
-    "List all collateral items valued above 1,000,000.",
-    "For each customer profile, show the average loan interest rate.",
-    "Show the total number of loans and total principal by risk category.",
-    "List the 5 most common loan purposes and their total amounts.",
-    "For each region, show the average loan-to-value ratio.",
-    "Find all loans with overdue payments and their associated companies.",
-    "Show the distribution of loan amounts by currency.",
-    "List all companies in the Americas region with loans above 5,000,000.",
-    "For each company, list the most recent loan and its amount.",
-    "Show all loans with fixed interest rates above 7%.",
-    "List the top 10 customers by total collateral value.",
-    "For each region, show the number of loans and the sum of principal amounts.",
-    "Show all companies with ESGScore above 80.",
-    "List all loans originated in the last 12 months.",
-    "Show the average interest rate by industry.",
-    "List all payment events for overdue loans.",
-    "Show the top 5 regions by total loan value.",
-    "List all companies with loans in multiple currencies.",
-    "Show all covenants that have failed in the last year.",
-    "List all companies with more than 1000 employees and active loans.",
-    "Show the total collateral value per loan.",
-    "List all risk metrics for companies in the Technology industry.",
+    ("Show the 10 most recent loans by OriginationDate.", "Easy"),
+    ("List all currencies and their symbols available in the database.", "Easy"),
+    ("Show all companies with more than 3 active loans.", "Easy"),
+    ("For each region, list the top 5 companies by total principal amount.", "Medium"),
+    ("Identify loans with upcoming covenant tests in the next 30 days.", "Medium"),
+    ("For each loan, compute the remaining balance and show the top 10 by balance.", "Medium"),
+    ("Show the total number of loans and total principal by risk category.", "Medium"),
+    ("List all collateral items valued above 1,000,000.", "Medium"),
+    ("For each company with loans, compute total principal amount; show the top 20 companies by total principal.", "Hard"),
+    ("For each region, show the average loan-to-value ratio.", "Hard"),
+    ("List all companies with loans in multiple currencies.", "Hard"),
+    ("Show all covenants that have failed in the last year.", "Hard"),
+    ("List all risk metrics for companies in the Technology industry.", "Hard"),
 ]
+
+# Color map for categories
+CATEGORY_COLORS = {
+    "Easy": "#e0f7fa",
+    "Medium": "#fff9c4",
+    "Hard": "#ffebee",
+}
+
 
 st.markdown("### Example Questions")
 cols = st.columns(min(3, len(SAMPLE_QUESTIONS)))
-for i, q in enumerate(SAMPLE_QUESTIONS):
+import hashlib
+for i, (q, cat) in enumerate(SAMPLE_QUESTIONS):
     with cols[i % len(cols)]:
-        if st.button(q, key=f"ex_{i}"):
+        # Styled container for color and legend
+        st.markdown(f"""
+            <div style='background-color:{CATEGORY_COLORS[cat]}; border-radius:6px; border:1px solid #ccc; padding:0.5em 0.2em; margin-bottom:0.2em;'>
+                <div style='font-size:1em; font-weight:500; color:#222; margin-bottom:0.3em;'>{q}</div>
+                <div style='font-size:0.9em; color:#666;'><b>Category:</b> <span style='color:#333'>{cat}</span></div>
+            </div>
+        """, unsafe_allow_html=True)
+        # Unique key: index + hash of question
+        q_hash = hashlib.md5(q.encode()).hexdigest()[:8]
+        if st.button("Select", key=f"ex_{i}_{q_hash}"):
             st.session_state["input_query"] = q
 
 query = st.text_area(
@@ -123,12 +145,21 @@ if run_clicked:
     st.markdown("### Schema Context (truncated)")
     st.code(state.schema_context[:2000], language="text")
 
+
     # --- Step 2: Intent extraction ---
+    intent_value = None
     if not explain_only:
         with st.spinner("Extracting intent and entities..."):
             state = intent.run(state)
-        st.markdown("### Intent & Entities")
-        st.write(state.intent_entities)
+        intent_value = state.intent_entities
+    else:
+        intent_value = state.intent_entities
+    st.markdown("### Intent & Entities")
+    if intent_value:
+        st.write(intent_value)
+    else:
+        st.warning("No intent/entities extracted. The agent may have failed to parse the question or the LLM did not return a result.")
+        st.info(f"User query fallback: {query}")
 
     # --- Step 3: SQL generation ---
     if not explain_only:
