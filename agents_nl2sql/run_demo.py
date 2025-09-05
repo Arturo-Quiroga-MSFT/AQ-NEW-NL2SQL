@@ -135,9 +135,10 @@ def main() -> int:
     print("\nSQL (sanitized):\n", state.sql_sanitized or "<none>")
     print("\nExecution preview:\n", state.execution_result.preview or "<none>")
 
-    # --- Persist results under RESULTS/ with timestamped filenames ---
+    # --- Persist results under agents_nl2sql/results/ with timestamped filenames ---
     try:
-        os.makedirs("RESULTS", exist_ok=True)
+        results_dir = os.path.join("agents_nl2sql", "results")
+        os.makedirs(results_dir, exist_ok=True)
         # Build a safe filename stem from the query
         slug = "".join(ch if ch.isalnum() or ch in (" ", "_", "-") else "_" for ch in state.user_query).strip()
         slug = "_".join(slug.split())
@@ -201,21 +202,21 @@ def main() -> int:
         lines.append("")
         lines.append(f"Total time: {elapsed_str}")
 
-        txt_path = os.path.join("RESULTS", f"{base}.txt")
+        txt_path = os.path.join(results_dir, f"{base}.txt")
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
         # --- JSON sidecar with exact rows if any ---
         rows = state.execution_result.rows or []
         if rows:
-            json_path = os.path.join("RESULTS", f"{base}.json")
+            json_path = os.path.join(results_dir, f"{base}.json")
             # Convert all date/datetime objects to strings before dumping
             rows_serializable = convert_dates(rows)
             with open(json_path, "w", encoding="utf-8") as jf:
                 json.dump(rows_serializable, jf, ensure_ascii=False, indent=2)
-            print(f"\nArtifacts: wrote {os.path.basename(txt_path)} and {os.path.basename(json_path)} to RESULTS/")
+            print(f"\nArtifacts: wrote {os.path.basename(txt_path)} and {os.path.basename(json_path)} to agents_nl2sql/results/")
         else:
-            print(f"\nArtifact: wrote {os.path.basename(txt_path)} to RESULTS/")
+            print(f"\nArtifact: wrote {os.path.basename(txt_path)} to agents_nl2sql/results/")
     except Exception as ex:
         print(f"\n[warn] Failed to persist run artifacts: {ex}")
     return 0

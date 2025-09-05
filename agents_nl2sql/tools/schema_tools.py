@@ -11,10 +11,15 @@ def _ensure_repo_on_path() -> None:
         sys.path.insert(0, repo_root)
 
 
-def get_schema_context() -> str:
+
+def get_schema_context(ttl_seconds: int = None) -> str:
+    """
+    Return the schema context string, using a cached version unless the cache is stale.
+    If ttl_seconds is provided, refresh cache if older than this TTL (in seconds).
+    """
     _ensure_repo_on_path()
     from schema_reader import get_sql_database_schema_context  # type: ignore
-    return get_sql_database_schema_context()
+    return get_sql_database_schema_context(ttl_seconds)
 
 
 def refresh_schema_cache() -> str:
