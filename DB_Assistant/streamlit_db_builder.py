@@ -1,10 +1,20 @@
 import streamlit as st
 from pathlib import Path
-from DB_Assistant.core.schema_parser import load_schema, dump_schema
-from DB_Assistant.core.validators import validate_spec
-from DB_Assistant.core.migration_planner import plan_migration
-from DB_Assistant.core.ddl_renderer import operations_to_sql
-from DB_Assistant.agents.design_agent import draft_schema_from_prompt
+import sys, os
+
+# Ensure repository root is on sys.path; this file lives in <repo>/DB_Assistant/ so root = parent of its directory.
+_here = Path(__file__).resolve()
+_root = _here.parent.parent  # repo root
+if _root.name != 'AQ-NEW-NL2SQL':  # fallback if structure changes
+    _root = _here.parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+from DB_Assistant.core.schema_parser import load_schema, dump_schema  # noqa: E402
+from DB_Assistant.core.validators import validate_spec  # noqa: E402
+from DB_Assistant.core.migration_planner import plan_migration  # noqa: E402
+from DB_Assistant.core.ddl_renderer import operations_to_sql  # noqa: E402
+from DB_Assistant.agents.design_agent import draft_schema_from_prompt  # noqa: E402
 
 st.set_page_config(page_title="DB Builder", layout="wide")
 st.title("DB Builder – Phase 0")
