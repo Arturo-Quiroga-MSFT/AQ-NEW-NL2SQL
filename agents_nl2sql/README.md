@@ -1,6 +1,6 @@
 # Agents NL2SQL (LangChain + LangGraph) — underscore package
 
-This is the properly named Python package (underscores, importable as `agents_nl2sql`). It mirrors the scaffold we created earlier.
+This is the properly named Python package (underscores, importable as `agents_nl2sql`). 
 
 Quick start
 
