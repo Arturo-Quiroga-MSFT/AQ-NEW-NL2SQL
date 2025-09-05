@@ -155,13 +155,15 @@ if page == "Prompt":
     if st.button("Generate Draft", type="primary"):
         spec = draft_schema_from_prompt(prompt, use_llm=use_llm)
         state["prompt"] = prompt
-        state["draft_spec"] = spec.dict()
+        # Pydantic v2: use model_dump for serialization
+        state["draft_spec"] = spec.model_dump()
         st.success("Draft generated.")
     if "draft_spec" in state:
         st.code(json.dumps(state["draft_spec"], indent=2), language="json")
         if st.button("Persist Draft YAML"):
             from DB_Assistant.core.schema_models import SchemaSpec
-            spec_obj = SchemaSpec.parse_obj(state["draft_spec"])
+            # Pydantic v2: use model_validate for reconstruction
+            spec_obj = SchemaSpec.model_validate(state["draft_spec"])
             out_path = Path("DB_Assistant/schema_specs/proposals/streamlit_draft.yml")
             out_path.parent.mkdir(parents=True, exist_ok=True)
             dump_schema(spec_obj, out_path)
