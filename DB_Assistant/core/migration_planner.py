@@ -43,6 +43,9 @@ def plan_migration(current: SchemaSpec | None, target: SchemaSpec) -> List[Opera
             for cname, col in tgt_cols.items():
                 if cname not in cur_cols:
                     add_columns.append(Operation("ADD_COLUMN", tname, col))
+                else:
+                    # Column present; skip type/nullable differences for now (future: ALTER support)
+                    pass
             # Indexes diff (naive: by name)
             cur_indexes: Set[str] = set()
             if isinstance(cur_obj, Dimension):
@@ -73,7 +76,33 @@ def plan_migration(current: SchemaSpec | None, target: SchemaSpec) -> List[Opera
                         extra = {"ref_table": ref_table, "ref_column": ref_col}
                         add_fks.append(Operation("ADD_FOREIGN_KEY", tname, fk, extra=extra))
 
-    # Ordering: create tables -> add columns -> indexes -> foreign keys
+    # Automatic index inference (simple heuristics):
+    # - Add non-unique index on each foreign key column if not already declared
+    # - Add composite index on fact grain (if multiple columns) if not declared
+    for tname, obj in target_tables.items():
+        existing_index_names = {i.payload.name for i in add_indexes if i.op == "CREATE_INDEX"}
+        if isinstance(obj, Fact):
+            declared_idx_cols = {tuple(sorted(idx.columns)): idx.name for idx in obj.indexes}
+            # FK columns
+            fk_cols = [fk.column for fk in obj.foreign_keys]
+            for fk_col in fk_cols:
+                # Skip if an index (single-col) already planned or declared
+                if any(fk_col in cols for cols in declared_idx_cols.keys() if len(cols) == 1):
+                    continue
+                inferred_name = f"ix_{tname}_{fk_col}"[:120]
+                if inferred_name not in existing_index_names:
+                    add_indexes.append(Operation("CREATE_INDEX", tname, Index(name=inferred_name, columns=[fk_col], unique=False)))
+            # Grain composite
+            if obj.grain:
+                grain_cols = [c.strip() for c in obj.grain.split(',') if c.strip()]
+                if len(grain_cols) > 1:
+                    sig = tuple(sorted(grain_cols))
+                    if sig not in declared_idx_cols:
+                        inferred_name = f"ix_{tname}_grain"[:120]
+                        if inferred_name not in existing_index_names:
+                            add_indexes.append(Operation("CREATE_INDEX", tname, Index(name=inferred_name, columns=grain_cols, unique=False)))
+
+    # Ordering: create tables -> add columns -> indexes (declared + inferred) -> foreign keys
     ops.extend(new_tables)
     ops.extend(add_columns)
     ops.extend(add_indexes)

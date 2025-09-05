@@ -10,6 +10,11 @@ def render_create_table(op: Operation) -> str:
     cols: list[Column] = []
     # Surrogate / natural keys are just columns; we assume they are already in columns list if needed.
     if isinstance(obj, Dimension):
+        # Inject surrogate key column if declared but not explicitly listed
+        sk = getattr(obj, "surrogate_key", None)
+        existing = {c.name for c in obj.columns}
+        if sk and sk not in existing:
+            cols.append(Column(name=sk, type="INT", nullable=False))
         cols.extend(obj.columns)
     else:  # Fact
         cols.extend(obj.columns)
@@ -20,7 +25,19 @@ def render_create_table(op: Operation) -> str:
         null_sql = "NULL" if c.nullable else "NOT NULL"
         col_defs.append(f"    {c.name} {c.type} {null_sql}")
     col_section = ",\n".join(col_defs)
-    return f"CREATE TABLE {obj.name} (\n{col_section}\n);"
+    # Primary key constraint if surrogate key present
+    pk_line = ""
+    if isinstance(obj, Dimension) and getattr(obj, "surrogate_key", None):
+        pk_line = f",\n    CONSTRAINT pk_{obj.name} PRIMARY KEY CLUSTERED ({obj.surrogate_key})"
+
+    # Wrap with IF NOT EXISTS guard for idempotent replay
+    guard = (
+        "IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '"
+        + obj.name
+        + "') BEGIN\n"
+    )
+    end_guard = "END"  # separate for readability
+    return f"{guard}CREATE TABLE {obj.name} (\n{col_section}{pk_line}\n);\n{end_guard}"
 
 
 def _render_add_column(table: str, col: Column) -> str:
@@ -31,7 +48,15 @@ def _render_add_column(table: str, col: Column) -> str:
 def _render_create_index(table: str, idx: Index) -> str:
     cols = ", ".join(idx.columns)
     unique = "UNIQUE " if idx.unique else ""
-    return f"CREATE {unique}INDEX {idx.name} ON {table} ({cols});"
+    return (
+        "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='"
+        + idx.name
+        + "' AND object_id = OBJECT_ID('"
+        + table
+        + "')) BEGIN\nCREATE "
+        + unique
+        + f"INDEX {idx.name} ON {table} ({cols});\nEND"
+    )
 
 
 def _render_add_foreign_key(table: str, fk_op: Operation) -> str:
@@ -40,9 +65,13 @@ def _render_add_foreign_key(table: str, fk_op: Operation) -> str:
     ref_table = fk_op.extra["ref_table"] if fk_op.extra else "unknown_table"
     ref_col = fk_op.extra["ref_column"] if fk_op.extra else "id"
     constraint = f"fk_{table}_{fk.column}"
+    # Guard: ensure not already present (by name)
     return (
-        f"ALTER TABLE {table} ADD CONSTRAINT {constraint} FOREIGN KEY ({fk.column}) "
-        f"REFERENCES {ref_table} ({ref_col});"
+        "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='"
+        + constraint
+        + "') BEGIN\nALTER TABLE "
+        + table
+        + f" ADD CONSTRAINT {constraint} FOREIGN KEY ({fk.column}) REFERENCES {ref_table} ({ref_col});\nEND"
     )
 
 

@@ -1,0 +1,5 @@
+version: 1
+warehouse: null
+entities:
+  dimensions: []
+  facts: []

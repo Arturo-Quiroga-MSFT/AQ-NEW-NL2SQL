@@ -1,0 +1,28 @@
+entities:
+  dim_company:
+    rows: 25
+    distributions:
+      region:
+        values:
+          - value: north
+            weight: 0.3
+          - value: south
+            weight: 0.2
+          - value: east
+            weight: 0.25
+          - value: west
+            weight: 0.25
+  dim_date:
+    strategy: calendar_range
+    start: 2025-01-01
+    end: 2025-01-15
+  fact_loan_payments:
+    rows_per_parent:
+      parent: dim_company
+      min: 3
+      max: 8
+    measures:
+      amount:
+        distribution: lognormal
+        mean: 9
+        sigma: 0.7

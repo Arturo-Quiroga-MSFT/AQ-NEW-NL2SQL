@@ -26,14 +26,22 @@ entities:
           nullable: false
   facts:
     - name: fact_loan_payments
-      grain: "loan_id, payment_date"
+      grain: "loan_id, date_key"
       columns:
         - name: loan_id
           type: VARCHAR(50)
           nullable: false
-        - name: payment_date
-          type: DATE
+        - name: company_key
+          type: INT
           nullable: false
+        - name: date_key
+          type: INT
+          nullable: false
+      foreign_keys:
+        - column: company_key
+          references: dim_company(company_key)
+        - column: date_key
+          references: dim_date(date_key)
       measures:
         - name: principal_paid
           type: DECIMAL(18,2)
