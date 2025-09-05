@@ -277,6 +277,9 @@ python -m DB_Assistant.cli.main orchestrate "For each region list top 5 companie
 
 # Machine-readable JSON output:
 python -m DB_Assistant.cli.main orchestrate "For each region list top 5 companies by total principal" --no-exec --json | jq .
+
+## CI Trigger Note
+This line added on 2025-09-05 to intentionally trigger the GitHub Actions workflow (no [skip ci] token present).
 ```
 
 ## 18. Future Enhancements (Backlog Ideas)
