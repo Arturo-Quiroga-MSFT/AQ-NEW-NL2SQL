@@ -135,13 +135,15 @@ def _build_context_from_metadata(meta: Dict[str, Any]) -> str:
 	lines.append("DATABASE: CONTOSO-FI (Azure SQL)\n")
 	# Key guidance
 	lines.append("GUIDELINES\n")
-	lines.append("- Prefer dbo.vw_LoanPortfolio for portfolio-style questions and join to Collateral or PaymentSchedule when required.\n")
+	lines.append("- Prefer dbo.vw_LoanPortfolio for simple portfolio-style questions.\n")
+	lines.append("- For hard/complex questions, use the base tables (Loan, Company, Collateral, Covenant, PaymentSchedule, etc.) and generate SQL with multiple joins, subqueries, CTEs, or advanced logic as needed.\n")
 	lines.append("- Use appropriate GROUP BY for aggregates; weight interest rate averages by PrincipalAmount if needed.\n")
 	lines.append("- Do not emit USE or GO; return a single executable SELECT statement.\n\n")
 
 	# View is stable and convenient; keep it documented
 	lines.append("VIEW\n")
-	lines.append("- dbo.vw_LoanPortfolio: Denormalized portfolio view with columns including LoanId, LoanNumber, CompanyName, Industry, CreditRating, CountryName, RegionName, OriginationDate, MaturityDate, PrincipalAmount, CurrencyCode, InterestRatePct, InterestRateType, ReferenceRate, SpreadBps, AmortizationType, PaymentFreqMonths, Status, Purpose\n\n")
+	lines.append("- dbo.vw_LoanPortfolio: Denormalized portfolio view with columns including LoanId, LoanNumber, CompanyName, Industry, CreditRating, CountryName, RegionName, OriginationDate, MaturityDate, PrincipalAmount, CurrencyCode, InterestRatePct, InterestRateType, ReferenceRate, SpreadBps, AmortizationType, PaymentFreqMonths, Status, Purpose\n")
+	lines.append("  (Recommended for simple portfolio queries. For hard questions, prefer base tables and advanced SQL.)\n\n")
 
 	# Tables
 	lines.append("TABLES\n")
@@ -183,9 +185,13 @@ def get_sql_database_schema_context(ttl_seconds: int = None) -> str:
 		return (
 			"DATABASE: CONTOSO-FI (Azure SQL)\n\n"
 			"VIEW\n"
-			"- dbo.vw_LoanPortfolio: Denormalized portfolio view (Loan, Company, Region, Principal, InterestRate, etc.)\n\n"
+			"- dbo.vw_LoanPortfolio: Denormalized portfolio view (Loan, Company, Region, Principal, InterestRate, etc.)\n"
+			"  (Recommended for simple portfolio queries. For hard questions, prefer base tables and advanced SQL.)\n\n"
 			"GUIDELINES\n"
-			"- Prefer dbo.vw_LoanPortfolio and join to Collateral/PaymentSchedule if needed.\n"
+			"- Prefer dbo.vw_LoanPortfolio for simple portfolio-style questions.\n"
+			"- For hard/complex questions, use the base tables (Loan, Company, Collateral, Covenant, PaymentSchedule, etc.) and generate SQL with multiple joins, subqueries, CTEs, or advanced logic as needed.\n"
+			"- Use appropriate GROUP BY for aggregates; weight interest rate averages by PrincipalAmount if needed.\n"
+			"- Do not emit USE or GO; return a single executable SELECT statement.\n"
 			f"- Schema sync unavailable: {e}\n"
 		)
 

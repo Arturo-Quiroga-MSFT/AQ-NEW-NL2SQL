@@ -1,0 +1,43 @@
+Query: List all currencies and their symbols available in the database.
+
+Intent & Entities (JSON):
+{
+  "intent": "List all currencies and their symbols available in the database.",
+  "error": "'\"intent\"'"
+}
+
+Reasoning / Plan:
+- Entities mapping: “currencies” → ref.Currency (CurrencyCode, CurrencyName, Symbol).
+- Tables/Joins: Single-table query from ref.Currency; no joins required.
+- Aggregations: None needed; return one row per currency.
+- Filters: None; include all rows in ref.Currency. Optionally exclude rows with missing CurrencyCode or Symbol if required.
+- Order/Limit: Order by CurrencyCode (or CurrencyName) ascending; no limit.
+- Assumptions:
+  - “Available in the database” means currencies defined in ref.Currency, not only those used by loans/payments.
+  - CurrencyCode values are unique; use DISTINCT defensively if duplicates are possible.
+  - Symbols may be null for some currencies; include them as-is unless instructed otherwise.
+
+Generated SQL:
+SELECT CurrencyCode, CurrencyName, Symbol
+FROM ref.Currency
+ORDER BY CurrencyCode
+
+Sanitized SQL:
+SELECT CurrencyCode, CurrencyName, Symbol
+FROM ref.Currency
+ORDER BY CurrencyCode
+
+Results Preview:
+CurrencyCode | CurrencyName       | Symbol
+-------------+--------------------+-------
+CNY          | Chinese Yuan       | ¥     
+EUR          | Euro               | €     
+GBP          | Pound Sterling     | £     
+INR          | Indian Rupee       | ?     
+JPY          | Japanese Yen       | ¥     
+KES          | Kenyan Shilling    | KSh   
+NGN          | Nigerian Naira     | ?     
+USD          | US Dollar          | $     
+ZAR          | South African Rand | R     
+
+Total pipeline execution time: 13.66 seconds

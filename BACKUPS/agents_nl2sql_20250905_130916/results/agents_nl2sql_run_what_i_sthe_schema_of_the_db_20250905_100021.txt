@@ -1,0 +1,133 @@
+=== NL2SQL Agents Demo Run ===
+Run ID: 99bafa30-48fb-4874-a59a-f8cc5db423bd
+Started: 2025-09-05T09:59:13.576591
+
+Query: what i sthe schema of the db
+Flags: no_exec=False, no_reasoning=False, explain_only=False, refresh_schema=False
+
+Schema context:
+DATABASE: CONTOSO-FI (Azure SQL)
+GUIDELINES
+- Prefer dbo.vw_LoanPortfolio for portfolio-style questions and join to Collateral or PaymentSchedule when required.
+- Use appropriate GROUP BY for aggregates; weight interest rate averages by PrincipalAmount if needed.
+- Do not emit USE or GO; return a single executable SELECT statement.
+
+VIEW
+- dbo.vw_LoanPortfolio: Denormalized portfolio view with columns including LoanId, LoanNumber, CompanyName, Industry, CreditRating, CountryName, RegionName, OriginationDate, MaturityDate, PrincipalAmount, CurrencyCode, InterestRatePct, InterestRateType, ReferenceRate, SpreadBps, AmortizationType, PaymentFreqMonths, Status, Purpose
+
+TABLES
+- dbo.Collateral(CollateralId, LoanId, CollateralType, Description, Jurisdiction, ValueAmount, CurrencyCode, ValuationDate, Status)
+- dbo.Company(CompanyId, CompanyName, CountryCode, Industry, CreditRating, FoundedYear, EmployeeCount)
+- dbo.CompanyAddress(AddressId, CompanyId, AddressType, Line1, City, StateProvince, PostalCode, CountryCode, Latitude, Longitude, EffectiveDate)
+- dbo.Covenant(CovenantId, LoanId, CovenantType, Operator, Threshold, Frequency, LastTestDate, Status, Notes)
+- dbo.CovenantSchedule(CovenantScheduleId, CovenantId, TestDueDate, RequiredOperator, RequiredThreshold, NotificationDays)
+- dbo.CovenantTestResult(TestResultId, CovenantId, LoanId, TestDate, Status, ObservedValue, Notes)
+- dbo.CustomerProfile(CustomerProfileId, CompanyId, LegalName, TaxId, ParentCompanyId, OwnershipType, ESGScore, AnnualRevenueUSD, Headcount, Website, IncorporationDate, CreditOfficer ...)
+- dbo.Loan(LoanId, CompanyId, LoanNumber, OriginationDate, MaturityDate, PrincipalAmount, CurrencyCode, InterestRatePct, InterestRateType, ReferenceRate, SpreadBps, AmortizationType ...)
+- dbo.PaymentEvent(PaymentEventId, LoanId, EventDate, EventType, Amount, CurrencyCode, DaysDelinquent, Notes)
+- dbo.PaymentSchedule(ScheduleId, LoanId, PaymentNumber, DueDate, StartingPrincipal, PrincipalDue, InterestDue, TotalDue, CurrencyCode, Status, PaidFlag, PaidDate ...)
+- dbo.RiskMetricHistory(RiskMetricHistoryId, CompanyId, AsOfDate, MetricName, MetricValue, Source)
+- ref.Country(CountryCode, CountryName, RegionId, SubregionId)
+- ref.Currency(CurrencyCode, CurrencyName, Symbol)
+- ref.FXRateDaily(RateDate, FromCurrency, ToCurrency, Rate)
+- ref.ReferenceRate(ReferenceRateCode, Description, TenorMonths, CurrencyCode)
+- ref.Region(RegionId, RegionName)
+- ref.Subregion(SubregionId, SubregionName, RegionId)
+
+RELATIONSHIPS
+- dbo.Collateral.CurrencyCode -> ref.Currency.CurrencyCode
+- dbo.Collateral.LoanId -> dbo.Loan.LoanId
+- dbo.Company.CountryCode -> ref.Country.CountryCode
+- dbo.CompanyAddress.CompanyId -> dbo.Company.CompanyId
+- dbo.CompanyAddress.CountryCode -> ref.Country.CountryCode
+- dbo.Covenant.LoanId -> dbo.Loan.LoanId
+- dbo.CovenantSchedule.CovenantId -> dbo.Covenant.CovenantId
+- dbo.CovenantTestResult.CovenantId -> dbo.Covenant.CovenantId
+- dbo.CovenantTestResult.LoanId -> dbo.Loan.LoanId
+- dbo.CustomerProfile.CompanyId -> dbo.Company.CompanyId
+- dbo.CustomerProfile.ParentCompanyId -> dbo.Company.CompanyId
+- dbo.Loan.CompanyId -> dbo.Company.CompanyId
+- dbo.Loan.CurrencyCode -> ref.Currency.CurrencyCode
+- dbo.Loan.ReferenceRateCode -> ref.ReferenceRate.ReferenceRateCode
+- dbo.PaymentEvent.CurrencyCode -> ref.Currency.CurrencyCode
+- dbo.PaymentEvent.LoanId -> dbo.Loan.LoanId
+- dbo.PaymentSchedule.CurrencyCode -> ref.Currency.CurrencyCode
+- dbo.PaymentSchedule.LoanId -> dbo.Loan.LoanId
+- dbo.RiskMetricHistory.CompanyId -> dbo.Company.CompanyId
+- ref.Country.RegionId -> ref.Region.RegionId
+- ref.Country.SubregionId -> ref.Subregion.SubregionId
+- ref.FXRateDaily.FromCurrency -> ref.Currency.CurrencyCode
+- ref.FXRateDaily.ToCurrency -> ref.Currency.CurrencyCode
+- ref.ReferenceRate.CurrencyCode -> ref.Currency.CurrencyCode
+- ref.Subregion.RegionId -> ref.Region.RegionId
+
+Intent/Entities:
+""
+
+Reasoning:
+<none>
+
+SQL (sanitized):
+SELECT
+  lp.LoanId,
+  lp.LoanNumber,
+  lp.CompanyName,
+  lp.Industry,
+  lp.CreditRating,
+  lp.CountryName,
+  lp.RegionName,
+  lp.OriginationDate,
+  lp.MaturityDate,
+  lp.PrincipalAmount,
+  lp.CurrencyCode,
+  lp.InterestRatePct,
+  lp.InterestRateType,
+  lp.ReferenceRate,
+  lp.SpreadBps,
+  lp.AmortizationType,
+  lp.PaymentFreqMonths,
+  lp.Status,
+  lp.Purpose,
+  nextPay.DueDate AS NextDueDate,
+  nextPay.TotalDue AS NextPaymentTotalDue,
+  nextPay.PrincipalDue AS NextPaymentPrincipalDue,
+  nextPay.InterestDue AS NextPaymentInterestDue,
+  nextPay.CurrencyCode AS NextPaymentCurrency
+FROM dbo.vw_LoanPortfolio AS lp
+OUTER APPLY (
+    SELECT TOP 1
+        ps.DueDate,
+        ps.TotalDue,
+        ps.PrincipalDue,
+        ps.InterestDue,
+        ps.CurrencyCode
+    FROM dbo.PaymentSchedule AS ps
+    WHERE
+        ps.LoanId = lp.LoanId
+        AND (ps.PaidFlag = 0 OR ps.PaidFlag IS NULL)
+        AND ps.DueDate >= CAST(GETDATE() AS date)
+        AND (ps.Status IS NULL OR ps.Status NOT IN ('Cancelled','Void'))
+    ORDER BY ps.DueDate ASC, ps.PaymentNumber ASC
+) AS nextPay
+ORDER BY lp.LoanNumber;
+
+Execution preview:
+LoanId | LoanNumber | CompanyName              | Industry        | CreditRating | CountryName    | RegionName | OriginationDate | MaturityDate | PrincipalAmount | CurrencyCode | InterestRatePct | InterestRateType | ReferenceRate | SpreadBps | AmortizationType | PaymentFreqMonths | Status | Purpose              | NextDueDate | NextPaymentTotalDue | NextPaymentPrincipalDue | NextPaymentInterestDue | NextPaymentCurrency
+-------+------------+--------------------------+-----------------+--------------+----------------+------------+-----------------+--------------+-----------------+--------------+-----------------+------------------+---------------+-----------+------------------+-------------------+--------+----------------------+-------------+---------------------+-------------------------+------------------------+--------------------
+12     | AF-00001   | Cape Coast Minerals Ltd  | Mining          | BB+          | South Africa   | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | ZAR          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2025-11-27  | 398241.19           | 249039.30               | 149201.89              | ZAR                
+13     | AF-00002   | Lagos Marine Services    | Maritime        | BB           | Nigeria        | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | NGN          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2025-11-27  | 398241.19           | 249039.30               | 149201.89              | NGN                
+14     | AF-00003   | Nairobi AgriFoods PLC    | Agriculture     | BBB-         | Kenya          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | KES          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2025-11-27  | 398241.19           | 249039.30               | 149201.89              | KES                
+15     | AF-00004   | Alexandria Textiles Co   | Textiles        | BB+          | Egypt          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | USD          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2025-11-27  | 398241.19           | 249039.30               | 149201.89              | USD                
+8      | AS-00001   | Osaka Precision K.K.     | Electronics     | A-           | Japan          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | JPY          | 3.900           | Floating         | TONA          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2026-02-27  | 429000.00           | 0.00                    | 429000.00              | JPY                
+9      | AS-00002   | Shanghai GreenChem Co    | Chemicals       | BBB          | China          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | CNY          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2026-02-27  | 429000.00           | 0.00                    | 429000.00              | CNY                
+10     | AS-00003   | Mumbai InfraTech Ltd     | Infrastructure  | BBB+         | India          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | INR          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2026-02-27  | 429000.00           | 0.00                    | 429000.00              | INR                
+11     | AS-00004   | Singapore Data Centers   | Data Centers    | A            | Singapore      | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | USD          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2026-02-27  | 429000.00           | 0.00                    | 429000.00              | USD                
+4      | EU-00001   | Nordwind Logistics GmbH  | Logistics       | BBB          | Germany        | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2026-02-27  | 1402662.78          | 1109210.89              | 293451.89              | EUR                
+5      | EU-00002   | Gaulois Pharma SA        | Pharmaceuticals | A            | France         | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2026-02-27  | 1402662.78          | 1109210.89              | 293451.89              | EUR                
+6      | EU-00003   | Thyme Retail Group       | Retail          | BBB-         | United Kingdom | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | GBP          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2026-02-27  | 1402662.78          | 1109210.89              | 293451.89              | GBP                
+7      | EU-00004   | Amsterdam FinTech BV     | Technology      | A-           | Netherlands    | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2026-02-27  | 1402662.78          | 1109210.89              | 293451.89              | EUR                
+1      | TEST-00001 | Acme Industrial Holdings | Manufacturing   | BBB+         | United States  | Americas   | 2022-01-15      | 2027-01-15   | 10000000.00     | USD          | 5.750           | Floating         | SOFR          | 150       | Amortizing       | 3                 | Active | Test Insert          | 2025-10-15  | 310523.87           | 233412.57               | 77111.30               | USD                
+2      | US-00001   | Blue Ridge Energy Corp   | Energy          | A-           | United States  | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion      | 2025-11-27  | 864823.11           | 634248.77               | 230574.34              | USD                
+3      | US-00002   | Toronto Health Devices   | Medical Devices | BBB+         | Canada         | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion      | 2025-11-27  | 864823.11           | 634248.77               | 230574.34              | USD
+
+Token usage: prompt=2282, completion=2947, total=5229

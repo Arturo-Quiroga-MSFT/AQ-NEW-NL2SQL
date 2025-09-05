@@ -1,0 +1,106 @@
+Query: Show the 10 most recent loans by OriginationDate.
+
+Generated SQL:
+SELECT
+  lp.LoanId,
+  lp.LoanNumber,
+  lp.CompanyName,
+  lp.Industry,
+  lp.CreditRating,
+  lp.CountryName,
+  lp.RegionName,
+  lp.OriginationDate,
+  lp.MaturityDate,
+  lp.PrincipalAmount,
+  lp.CurrencyCode,
+  lp.InterestRatePct,
+  lp.InterestRateType,
+  lp.ReferenceRate,
+  lp.SpreadBps,
+  lp.AmortizationType,
+  lp.PaymentFreqMonths,
+  lp.Status,
+  lp.Purpose,
+  np.DueDate AS NextDueDate,
+  np.TotalDue AS NextTotalDue,
+  np.PrincipalDue AS NextPrincipalDue,
+  np.InterestDue AS NextInterestDue,
+  np.PaymentCurrency
+FROM dbo.vw_LoanPortfolio AS lp
+OUTER APPLY (
+  SELECT TOP (1)
+    ps.DueDate,
+    ps.TotalDue,
+    ps.PrincipalDue,
+    ps.InterestDue,
+    ps.CurrencyCode AS PaymentCurrency
+  FROM dbo.PaymentSchedule AS ps
+  WHERE ps.LoanId = lp.LoanId
+    AND (ps.PaidFlag = 0 OR ps.PaidFlag IS NULL)
+    AND (ps.Status IS NULL OR ps.Status NOT IN ('Cancelled','Skipped'))
+  ORDER BY ps.DueDate ASC
+) AS np
+ORDER BY lp.OriginationDate DESC, lp.LoanId;
+
+Sanitized SQL:
+SELECT
+  lp.LoanId,
+  lp.LoanNumber,
+  lp.CompanyName,
+  lp.Industry,
+  lp.CreditRating,
+  lp.CountryName,
+  lp.RegionName,
+  lp.OriginationDate,
+  lp.MaturityDate,
+  lp.PrincipalAmount,
+  lp.CurrencyCode,
+  lp.InterestRatePct,
+  lp.InterestRateType,
+  lp.ReferenceRate,
+  lp.SpreadBps,
+  lp.AmortizationType,
+  lp.PaymentFreqMonths,
+  lp.Status,
+  lp.Purpose,
+  np.DueDate AS NextDueDate,
+  np.TotalDue AS NextTotalDue,
+  np.PrincipalDue AS NextPrincipalDue,
+  np.InterestDue AS NextInterestDue,
+  np.PaymentCurrency
+FROM dbo.vw_LoanPortfolio AS lp
+OUTER APPLY (
+  SELECT TOP (1)
+    ps.DueDate,
+    ps.TotalDue,
+    ps.PrincipalDue,
+    ps.InterestDue,
+    ps.CurrencyCode AS PaymentCurrency
+  FROM dbo.PaymentSchedule AS ps
+  WHERE ps.LoanId = lp.LoanId
+    AND (ps.PaidFlag = 0 OR ps.PaidFlag IS NULL)
+    AND (ps.Status IS NULL OR ps.Status NOT IN ('Cancelled','Skipped'))
+  ORDER BY ps.DueDate ASC
+) AS np
+ORDER BY lp.OriginationDate DESC, lp.LoanId;
+
+Results Preview:
+LoanId | LoanNumber | CompanyName              | Industry        | CreditRating | CountryName    | RegionName | OriginationDate | MaturityDate | PrincipalAmount | CurrencyCode | InterestRatePct | InterestRateType | ReferenceRate | SpreadBps | AmortizationType | PaymentFreqMonths | Status | Purpose              | NextDueDate | NextTotalDue | NextPrincipalDue | NextInterestDue | PaymentCurrency
+-------+------------+--------------------------+-----------------+--------------+----------------+------------+-----------------+--------------+-----------------+--------------+-----------------+------------------+---------------+-----------+------------------+-------------------+--------+----------------------+-------------+--------------+------------------+-----------------+----------------
+8      | AS-00001   | Osaka Precision K.K.     | Electronics     | A-           | Japan          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | JPY          | 3.900           | Floating         | TONA          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2025-02-27  | 429000.00    | 0.00             | 429000.00       | JPY            
+9      | AS-00002   | Shanghai GreenChem Co    | Chemicals       | BBB          | China          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | CNY          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2025-02-27  | 429000.00    | 0.00             | 429000.00       | CNY            
+10     | AS-00003   | Mumbai InfraTech Ltd     | Infrastructure  | BBB+         | India          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | INR          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2025-02-27  | 429000.00    | 0.00             | 429000.00       | INR            
+11     | AS-00004   | Singapore Data Centers   | Data Centers    | A            | Singapore      | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | USD          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout | 2025-02-27  | 429000.00    | 0.00             | 429000.00       | USD            
+4      | EU-00001   | Nordwind Logistics GmbH  | Logistics       | BBB          | Germany        | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2024-02-27  | 2043395.74   | 1615895.74       | 427500.00       | EUR            
+5      | EU-00002   | Gaulois Pharma SA        | Pharmaceuticals | A            | France         | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2024-02-27  | 2043395.74   | 1615895.74       | 427500.00       | EUR            
+6      | EU-00003   | Thyme Retail Group       | Retail          | BBB-         | United Kingdom | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | GBP          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2024-02-27  | 2043395.74   | 1615895.74       | 427500.00       | GBP            
+7      | EU-00004   | Amsterdam FinTech BV     | Technology      | A-           | Netherlands    | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital      | 2024-02-27  | 2043395.74   | 1615895.74       | 427500.00       | EUR            
+2      | US-00001   | Blue Ridge Energy Corp   | Energy          | A-           | United States  | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion      | 2022-11-27  | 1465130.62   | 1074505.62       | 390625.00       | USD            
+3      | US-00002   | Toronto Health Devices   | Medical Devices | BBB+         | Canada         | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion      | 2022-11-27  | 1465130.62   | 1074505.62       | 390625.00       | USD            
+1      | TEST-00001 | Acme Industrial Holdings | Manufacturing   | BBB+         | United States  | Americas   | 2022-01-15      | 2027-01-15   | 10000000.00     | USD          | 5.750           | Floating         | SOFR          | 150       | Amortizing       | 3                 | Active | Test Insert          | 2022-04-15  | 578875.06    | 435125.06        | 143750.00       | USD            
+12     | AF-00001   | Cape Coast Minerals Ltd  | Mining          | BB+          | South Africa   | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | ZAR          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2021-11-27  | 760705.76    | 475705.76        | 285000.00       | ZAR            
+13     | AF-00002   | Lagos Marine Services    | Maritime        | BB           | Nigeria        | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | NGN          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2021-11-27  | 760705.76    | 475705.76        | 285000.00       | NGN            
+14     | AF-00003   | Nairobi AgriFoods PLC    | Agriculture     | BBB-         | Kenya          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | KES          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2021-11-27  | 760705.76    | 475705.76        | 285000.00       | KES            
+15     | AF-00004   | Alexandria Textiles Co   | Textiles        | BB+          | Egypt          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | USD          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization  | 2021-11-27  | 760705.76    | 475705.76        | 285000.00       | USD            
+
+Total pipeline execution time: 40.79 seconds

@@ -1,0 +1,68 @@
+Query: For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+
+Intent & Entities: <none extracted>
+
+Generated SQL:
+SELECT LoanId,
+       LoanNumber,
+       CompanyName,
+       Industry,
+       CreditRating,
+       CountryName,
+       RegionName,
+       OriginationDate,
+       MaturityDate,
+       PrincipalAmount,
+       CurrencyCode,
+       InterestRatePct,
+       InterestRateType,
+       ReferenceRate,
+       SpreadBps,
+       AmortizationType,
+       PaymentFreqMonths,
+       Status,
+       Purpose
+FROM dbo.vw_LoanPortfolio
+
+Sanitized SQL:
+SELECT LoanId,
+       LoanNumber,
+       CompanyName,
+       Industry,
+       CreditRating,
+       CountryName,
+       RegionName,
+       OriginationDate,
+       MaturityDate,
+       PrincipalAmount,
+       CurrencyCode,
+       InterestRatePct,
+       InterestRateType,
+       ReferenceRate,
+       SpreadBps,
+       AmortizationType,
+       PaymentFreqMonths,
+       Status,
+       Purpose
+FROM dbo.vw_LoanPortfolio
+
+Results Preview:
+LoanId | LoanNumber | CompanyName              | Industry        | CreditRating | CountryName    | RegionName | OriginationDate | MaturityDate | PrincipalAmount | CurrencyCode | InterestRatePct | InterestRateType | ReferenceRate | SpreadBps | AmortizationType | PaymentFreqMonths | Status | Purpose             
+-------+------------+--------------------------+-----------------+--------------+----------------+------------+-----------------+--------------+-----------------+--------------+-----------------+------------------+---------------+-----------+------------------+-------------------+--------+---------------------
+1      | TEST-00001 | Acme Industrial Holdings | Manufacturing   | BBB+         | United States  | Americas   | 2022-01-15      | 2027-01-15   | 10000000.00     | USD          | 5.750           | Floating         | SOFR          | 150       | Amortizing       | 3                 | Active | Test Insert         
+2      | US-00001   | Blue Ridge Energy Corp   | Energy          | A-           | United States  | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion     
+3      | US-00002   | Toronto Health Devices   | Medical Devices | BBB+         | Canada         | Americas   | 2022-08-27      | 2027-08-27   | 25000000.00     | USD          | 6.250           | Floating         | SOFR          | 185       | Amortizing       | 3                 | Active | Capex Expansion     
+4      | EU-00001   | Nordwind Logistics GmbH  | Logistics       | BBB          | Germany        | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+5      | EU-00002   | Gaulois Pharma SA        | Pharmaceuticals | A            | France         | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+6      | EU-00003   | Thyme Retail Group       | Retail          | BBB-         | United Kingdom | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | GBP          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+7      | EU-00004   | Amsterdam FinTech BV     | Technology      | A-           | Netherlands    | Europe     | 2023-08-27      | 2028-08-27   | 18000000.00     | EUR          | 4.750           | Floating         | EURIBOR       | 145       | Amortizing       | 6                 | Active | Working Capital     
+8      | AS-00001   | Osaka Precision K.K.     | Electronics     | A-           | Japan          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | JPY          | 3.900           | Floating         | TONA          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+9      | AS-00002   | Shanghai GreenChem Co    | Chemicals       | BBB          | China          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | CNY          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+10     | AS-00003   | Mumbai InfraTech Ltd     | Infrastructure  | BBB+         | India          | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | INR          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+11     | AS-00004   | Singapore Data Centers   | Data Centers    | A            | Singapore      | Asia       | 2024-08-27      | 2029-08-27   | 22000000.00     | USD          | 3.900           | Floating         | SOFR          | 120       | Bullet           | 6                 | Active | Data Center Buildout
+12     | AF-00001   | Cape Coast Minerals Ltd  | Mining          | BB+          | South Africa   | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | ZAR          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization 
+13     | AF-00002   | Lagos Marine Services    | Maritime        | BB           | Nigeria        | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | NGN          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization 
+14     | AF-00003   | Nairobi AgriFoods PLC    | Agriculture     | BBB-         | Kenya          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | KES          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization 
+15     | AF-00004   | Alexandria Textiles Co   | Textiles        | BB+          | Egypt          | Africa     | 2021-08-27      | 2026-08-27   | 12000000.00     | USD          | 9.500           | Fixed            | None          | None      | Amortizing       | 3                 | Active | Fleet Modernization 
+
+Total pipeline execution time: 13.78 seconds

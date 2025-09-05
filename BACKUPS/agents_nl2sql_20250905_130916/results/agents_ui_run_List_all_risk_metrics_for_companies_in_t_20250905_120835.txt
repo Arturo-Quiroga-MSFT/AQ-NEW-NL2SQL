@@ -1,0 +1,73 @@
+Query: List all risk metrics for companies in the Technology industry.
+
+Intent & Entities (JSON):
+{
+  "intent": "List all risk metrics for companies in the Technology industry.",
+  "error": "'\"intent\"'"
+}
+
+Generated SQL:
+WITH TechCompanies AS (
+  SELECT
+    c.CompanyId,
+    c.CompanyName,
+    c.Industry,
+    c.CountryCode,
+    COALESCE(ct.CountryName, 'Unknown') AS CountryName,
+    COALESCE(r.RegionName, 'Unknown') AS RegionName
+  FROM dbo.Company c
+  LEFT JOIN ref.Country ct ON ct.CountryCode = c.CountryCode
+  LEFT JOIN ref.Region r ON r.RegionId = ct.RegionId
+  WHERE c.Industry = 'Technology'
+)
+SELECT
+  tc.CompanyId,
+  tc.CompanyName,
+  tc.CountryName,
+  tc.RegionName,
+  rmh.AsOfDate,
+  rmh.MetricName,
+  rmh.MetricValue,
+  rmh.Source
+FROM dbo.RiskMetricHistory rmh
+JOIN TechCompanies tc ON tc.CompanyId = rmh.CompanyId
+ORDER BY tc.CompanyName, rmh.AsOfDate DESC, rmh.MetricName
+
+Sanitized SQL:
+WITH TechCompanies AS (
+  SELECT
+    c.CompanyId,
+    c.CompanyName,
+    c.Industry,
+    c.CountryCode,
+    COALESCE(ct.CountryName, 'Unknown') AS CountryName,
+    COALESCE(r.RegionName, 'Unknown') AS RegionName
+  FROM dbo.Company c
+  LEFT JOIN ref.Country ct ON ct.CountryCode = c.CountryCode
+  LEFT JOIN ref.Region r ON r.RegionId = ct.RegionId
+  WHERE c.Industry = 'Technology'
+)
+SELECT
+  tc.CompanyId,
+  tc.CompanyName,
+  tc.CountryName,
+  tc.RegionName,
+  rmh.AsOfDate,
+  rmh.MetricName,
+  rmh.MetricValue,
+  rmh.Source
+FROM dbo.RiskMetricHistory rmh
+JOIN TechCompanies tc ON tc.CompanyId = rmh.CompanyId
+ORDER BY tc.CompanyName, rmh.AsOfDate DESC, rmh.MetricName
+
+Results Preview:
+CompanyId | CompanyName          | CountryName | RegionName | AsOfDate   | MetricName | MetricValue | Source
+----------+----------------------+-------------+------------+------------+------------+-------------+-------
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2025-06-30 | DSCR       | 1.1000      | Model 
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2025-06-30 | Leverage   | 2.7100      | Model 
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2025-03-31 | DSCR       | 1.1800      | Model 
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2025-03-31 | Leverage   | 3.1100      | Model 
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2024-12-31 | DSCR       | 1.2600      | Model 
+13        | Amsterdam FinTech BV | Netherlands | Europe     | 2024-12-31 | Leverage   | 3.8600      | Model 
+
+Total pipeline execution time: 22.10 seconds

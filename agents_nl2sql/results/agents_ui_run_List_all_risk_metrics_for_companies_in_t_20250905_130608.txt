@@ -1,0 +1,73 @@
+Query: List all risk metrics for companies in the Technology industry.
+
+Intent & Entities (JSON):
+{
+  "intent": "Retrieve all risk metric records for companies classified in the Technology industry, i.e., the metric names (and optionally values and as-of dates) tied to those companies. Join Companies/Issuers to Industry/Sector and the RiskMetrics/CompanyRiskMetric fact table, filter Industry = 'Technology'; no aggregation is needed unless deduplicating metric types (SELECT DISTINCT) or choosing the latest value per company (max as_of_date)."
+}
+
+Reasoning / Plan:
+- Entities/Source Tables: use dbo.Company for company attributes (CompanyId, CompanyName, Industry) and dbo.RiskMetricHistory for risk metrics (CompanyId, AsOfDate, MetricName, MetricValue, Source). Return columns such as CompanyName, Industry, MetricName, MetricValue, AsOfDate, and optionally Source.
+- Link logic: relate dbo.RiskMetricHistory.CompanyId to dbo.Company.CompanyId to attach each metric record to its company and industry classification.
+- Filters: include only records where dbo.Company.Industry equals 'Technology' (consider case-insensitive comparison). Optionally add a date window on AsOfDate if the result set needs to be curtailed to recent periods.
+- Aggregations: no aggregation required for full history. If only one record per company and metric is desired, deduplicate by keeping the latest AsOfDate per (CompanyId, MetricName); if multiple rows share the same latest AsOfDate, break ties using RiskMetricHistoryId or keep all tied rows.
+- Ordering/Limit: sort results by CompanyName ascending, then MetricName ascending, then AsOfDate descending to show most recent values last in each group. Apply a row count restriction only if a preview is needed (otherwise return all qualifying rows).
+- Potential edge cases: companies with null or blank Industry; inconsistent casing or trailing spaces in Industry values; metrics with null MetricValue or null AsOfDate; multiple metric entries on the same date; orphaned metric rows without a matching company (exclude via inner relationship or include via outer relationship if desired); very large result sets if many historical records exist.
+- Assumptions/Notes: prefer base tables (Company and RiskMetricHistory) since this is not a loan-portfolio question; no currency handling needed; ensure predicates on Industry and join keys are sargable for performance.
+
+Generated SQL:
+WITH TechCompanies AS (
+  SELECT c.CompanyId, c.CompanyName, c.Industry, c.CountryCode
+  FROM dbo.Company c
+  WHERE c.Industry IS NOT NULL
+    AND LTRIM(RTRIM(c.Industry)) <> ''
+    AND UPPER(LTRIM(RTRIM(c.Industry))) = 'TECHNOLOGY'
+), CompanyGeo AS (
+  SELECT tc.CompanyId, tc.CompanyName, tc.Industry, ct.CountryName, r.RegionName
+  FROM TechCompanies tc
+  LEFT JOIN ref.Country ct ON tc.CountryCode = ct.CountryCode
+  LEFT JOIN ref.Region r ON ct.RegionId = r.RegionId
+), RiskMetrics AS (
+  SELECT rmh.CompanyId, rmh.AsOfDate, rmh.MetricName, rmh.MetricValue, rmh.Source
+  FROM dbo.RiskMetricHistory rmh
+  WHERE rmh.MetricName IS NOT NULL
+    AND LTRIM(RTRIM(rmh.MetricName)) <> ''
+)
+SELECT cg.CompanyId, cg.CompanyName, cg.Industry, cg.CountryName, cg.RegionName, rm.AsOfDate, rm.MetricName, rm.MetricValue, rm.Source
+FROM CompanyGeo cg
+JOIN RiskMetrics rm ON rm.CompanyId = cg.CompanyId
+ORDER BY cg.CompanyName, rm.MetricName, rm.AsOfDate DESC
+
+Sanitized SQL:
+WITH TechCompanies AS (
+  SELECT c.CompanyId, c.CompanyName, c.Industry, c.CountryCode
+  FROM dbo.Company c
+  WHERE c.Industry IS NOT NULL
+    AND LTRIM(RTRIM(c.Industry)) <> ''
+    AND UPPER(LTRIM(RTRIM(c.Industry))) = 'TECHNOLOGY'
+), CompanyGeo AS (
+  SELECT tc.CompanyId, tc.CompanyName, tc.Industry, ct.CountryName, r.RegionName
+  FROM TechCompanies tc
+  LEFT JOIN ref.Country ct ON tc.CountryCode = ct.CountryCode
+  LEFT JOIN ref.Region r ON ct.RegionId = r.RegionId
+), RiskMetrics AS (
+  SELECT rmh.CompanyId, rmh.AsOfDate, rmh.MetricName, rmh.MetricValue, rmh.Source
+  FROM dbo.RiskMetricHistory rmh
+  WHERE rmh.MetricName IS NOT NULL
+    AND LTRIM(RTRIM(rmh.MetricName)) <> ''
+)
+SELECT cg.CompanyId, cg.CompanyName, cg.Industry, cg.CountryName, cg.RegionName, rm.AsOfDate, rm.MetricName, rm.MetricValue, rm.Source
+FROM CompanyGeo cg
+JOIN RiskMetrics rm ON rm.CompanyId = cg.CompanyId
+ORDER BY cg.CompanyName, rm.MetricName, rm.AsOfDate DESC
+
+Results Preview:
+CompanyId | CompanyName          | Industry   | CountryName | RegionName | AsOfDate   | MetricName | MetricValue | Source
+----------+----------------------+------------+-------------+------------+------------+------------+-------------+-------
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-06-30 | DSCR       | 1.1000      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-03-31 | DSCR       | 1.1800      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2024-12-31 | DSCR       | 1.2600      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-06-30 | Leverage   | 2.7100      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-03-31 | Leverage   | 3.1100      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2024-12-31 | Leverage   | 3.8600      | Model 
+
+Total pipeline execution time: 46.71 seconds

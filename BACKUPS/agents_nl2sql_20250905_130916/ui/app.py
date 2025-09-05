@@ -15,7 +15,6 @@ from datetime import datetime
 import pandas as pd
 import time
 from dotenv import load_dotenv
-from agents_nl2sql.llm import get_pricing_for_deployment, DEPLOYMENT_NAME
 
 # Ensure repo root is on sys.path
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -268,30 +267,6 @@ if run_clicked:
     st.markdown("#### Run Metrics")
     st.write(f"Intent parse attempts: {getattr(state, 'intent_parse_attempts', 'n/a')}")
     st.write(f"Reasoning attempts: {getattr(state, 'reasoning_attempts', 'n/a')}")
-
-    # --- Token & Cost Panel (mirrors legacy UI style) ---
-    tok_prompt = state.token_usage.prompt
-    tok_completion = state.token_usage.completion
-    tok_total = state.token_usage.total or (tok_prompt + tok_completion)
-    in_price_1k, out_price_1k, price_source, currency = get_pricing_for_deployment(DEPLOYMENT_NAME)
-    with st.expander("Token usage & estimated cost", expanded=False):
-        st.write({
-            "prompt_tokens": tok_prompt,
-            "completion_tokens": tok_completion,
-            "total_tokens": tok_total,
-            "pricing_source": price_source,
-            "currency": currency,
-        })
-        if in_price_1k is not None and out_price_1k is not None:
-            input_cost = (tok_prompt / 1000.0) * in_price_1k
-            output_cost = (tok_completion / 1000.0) * out_price_1k
-            total_cost = input_cost + output_cost
-            st.success(
-                f"Estimated cost ({currency}): {total_cost:.6f}  "
-                f"[input={input_cost:.6f}, output={output_cost:.6f}; per-1k: in={in_price_1k}, out={out_price_1k}; source={price_source}]"
-            )
-        else:
-            st.info("Pricing not configured. Provide env vars AZURE_OPENAI_PRICE_INPUT_PER_1K / OUTPUT_PER_1K or per-deployment overrides, or azure_openai_pricing.json.")
 
     # --- Save results to a text file ---
     if not explain_only and state.execution_result.rows:
