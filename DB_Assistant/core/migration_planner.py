@@ -7,10 +7,10 @@ from .schema_models import SchemaSpec, Dimension, Fact, Column, Index
 
 @dataclass
 class Operation:
-    op: str  # e.g., CREATE_TABLE, ADD_COLUMN, CREATE_INDEX, ADD_FOREIGN_KEY
+    op: str  # e.g., CREATE_TABLE, ADD_COLUMN, ALTER_COLUMN, DROP_COLUMN, CREATE_INDEX, ADD_FOREIGN_KEY
     table: str
     payload: object | None = None  # Column | Index | ForeignKey | Dimension/Fact
-    extra: dict | None = None      # auxiliary data (e.g., FK parsed parts)
+    extra: dict | None = None      # auxiliary data (e.g., FK parsed parts, original column)
 
 
 def _columns_map(obj: Dimension | Fact) -> Dict[str, Column]:
@@ -28,6 +28,8 @@ def plan_migration(current: SchemaSpec | None, target: SchemaSpec) -> List[Opera
 
     new_tables: List[Operation] = []
     add_columns: List[Operation] = []
+    alter_columns: List[Operation] = []
+    drop_columns: List[Operation] = []
     add_indexes: List[Operation] = []
     add_fks: List[Operation] = []
 
@@ -40,12 +42,22 @@ def plan_migration(current: SchemaSpec | None, target: SchemaSpec) -> List[Opera
             # Columns diff
             cur_cols = _columns_map(cur_obj)
             tgt_cols = _columns_map(obj)
-            for cname, col in tgt_cols.items():
-                if cname not in cur_cols:
-                    add_columns.append(Operation("ADD_COLUMN", tname, col))
+            # Add & alter
+            for cname, tgt_col in tgt_cols.items():
+                cur_col = cur_cols.get(cname)
+                if cur_col is None:
+                    add_columns.append(Operation("ADD_COLUMN", tname, tgt_col))
                 else:
-                    # Column present; skip type/nullable differences for now (future: ALTER support)
-                    pass
+                    # Detect type or nullability change
+                    if (cur_col.type.upper() != tgt_col.type.upper()) or (cur_col.nullable != tgt_col.nullable):
+                        alter_columns.append(Operation("ALTER_COLUMN", tname, tgt_col, extra={"previous": cur_col}))
+            # Drops (columns present in current but removed from target)
+            for cname, cur_col in cur_cols.items():
+                if cname not in tgt_cols:
+                    # Do not drop surrogate key if accidentally omitted; heuristic: keep if name endswith '_key' and appears in any FK referencing this table
+                    if cname.endswith('_key'):
+                        continue
+                    drop_columns.append(Operation("DROP_COLUMN", tname, cur_col))
             # Indexes diff (naive: by name)
             cur_indexes: Set[str] = set()
             if isinstance(cur_obj, Dimension):
@@ -102,9 +114,11 @@ def plan_migration(current: SchemaSpec | None, target: SchemaSpec) -> List[Opera
                         if inferred_name not in existing_index_names:
                             add_indexes.append(Operation("CREATE_INDEX", tname, Index(name=inferred_name, columns=grain_cols, unique=False)))
 
-    # Ordering: create tables -> add columns -> indexes (declared + inferred) -> foreign keys
+    # Ordering: create tables -> add columns -> alter columns -> drop columns -> indexes (declared + inferred) -> foreign keys
     ops.extend(new_tables)
     ops.extend(add_columns)
+    ops.extend(alter_columns)
+    ops.extend(drop_columns)
     ops.extend(add_indexes)
     ops.extend(add_fks)
     return ops

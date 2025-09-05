@@ -94,9 +94,16 @@ def inspect_database(cursor) -> SchemaSpec:
     for tname in table_rows:
         cols = columns_by_table.get(tname, [])
         if tname.startswith("dim_"):
-            dims.append(Dimension(name=tname, surrogate_key=None, columns=cols, indexes=indexes_by_table.get(tname, [])))
+            # Surrogate key heuristic: first INT column ending with _key or exact 'id'
+            sk = None
+            for c in cols:
+                if c.name.endswith("_key") and c.type in ("INT", "BIGINT"):
+                    sk = c.name; break
+                if c.name == "id" and c.type in ("INT", "BIGINT"):
+                    sk = c.name; break
+            dims.append(Dimension(name=tname, surrogate_key=sk, columns=cols, indexes=indexes_by_table.get(tname, [])))
         elif tname.startswith("fact_"):
-            # Heuristic: classify DECIMAL(*) columns (not *_id, not *_key, not date) as measures
+            # Heuristic: classify DECIMAL(*) columns (not *_id, not *_key, not *date) as measures
             fact_measures: List[Column] = []
             fact_cols: List[Column] = []
             for c in cols:
@@ -104,7 +111,15 @@ def inspect_database(cursor) -> SchemaSpec:
                     fact_measures.append(c)
                 else:
                     fact_cols.append(c)
-            facts.append(Fact(name=tname, grain=None, columns=fact_cols, measures=fact_measures, foreign_keys=fks_map.get(tname, []), indexes=indexes_by_table.get(tname, [])))
+            # Grain inference: any foreign key columns + any natural id-like column (ending _id) present
+            fk_cols = [fk.column for fk in fks_map.get(tname, [])]
+            id_like = [c.name for c in fact_cols if c.name.endswith("_id")]
+            grain_cols = []
+            if id_like:
+                grain_cols.extend(id_like[:1])  # take first id-like as natural identifier
+            grain_cols.extend(fk_cols)
+            grain = ", ".join(dict.fromkeys(grain_cols)) if grain_cols else None
+            facts.append(Fact(name=tname, grain=grain, columns=fact_cols, measures=fact_measures, foreign_keys=fks_map.get(tname, []), indexes=indexes_by_table.get(tname, [])))
     return SchemaSpec(version=1, warehouse=None, entities=Entities(dimensions=dims, facts=facts))
 
 

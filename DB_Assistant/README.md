@@ -131,6 +131,7 @@ entities:
 | `dbx inspect` | Reverse-engineer live schema to YAML | `--out` |
 | `dbx suggest-queries --topic "covenant breaches"` | NL query ideas | `--limit` |
 | `dbx validate schema.yml` | Lint schema spec | `--strict` |
+| `dbx orchestrate "<question>"` | Multi-agent NL→SQL pipeline (LangGraph) | `--no-exec` `--explain-only` `--no-reasoning` `--refresh-schema` `--json` |
 
 ## 8. Synthetic Data Generation Strategy
 Layers:
@@ -247,13 +248,36 @@ REST Endpoints:
 - Metrics export to Log Analytics / Application Insights
 
 ## 17. Immediate Next Steps (Actionable)
-1. Confirm environment variables naming for DB connection (`DB_SERVER`, `DB_DATABASE`, `DB_USER`, `DB_PASSWORD`).
-2. Proceed with Phase 0 scaffold (create modules & Typer CLI).
-3. Add initial template: `templates/star_loans_risk.yml`.
-4. Add unit tests for model validation & simple DDL rendering.
-5. Document usage in a `USAGE.md` after scaffold.
+Already Implemented (baseline scaffold complete):
+- Core CLI (`design`, `plan`, `apply`, `inspect`, `seed`, `report`, `impact`)
+- Migration ledger & idempotent DDL
+- Column evolution (ADD/ALTER/DROP) with impact risk analyzer
+- Deterministic seeding & extended stats reporting
 
-Awaiting confirmation before scaffolding.
+Next Enhancements To Implement:
+1. Automated test suite (planner diffs, impact risk classification, report stats) under `tests/`.
+2. Dry‑run guard for high‑risk operations requiring `--allow-breaking` on apply.
+3. Expanded distribution library (correlated distributions, temporal drift patterns).
+4. GitHub Action workflow: validate + plan + impact JSON artifact on PR (ADDED: `.github/workflows/db_assistant_ci.yml`).
+5. Diagram generation (Mermaid) auto-updated in `docs/` from schema spec.
+
+Environment Activation:
+Always activate the project virtual environment before running commands:
+```bash
+source .venv/bin/activate
+```
+Then run CLI commands, e.g.:
+```bash
+python -m DB_Assistant.cli.main plan --target DB_Assistant/schema_specs/live_after_alter_drop.yml --current DB_Assistant/schema_specs/live_post_enhancements.yml
+python -m DB_Assistant.cli.main impact DB_Assistant/schema_specs/live_after_alter_drop.yml --current DB_Assistant/schema_specs/live_post_enhancements.yml --summary-only
+python -m DB_Assistant.cli.main report fact_loan_payments --percentiles 90,95,99
+
+# Orchestrate an NL question to SQL (rich panels):
+python -m DB_Assistant.cli.main orchestrate "For each region list top 5 companies by total principal" --no-exec
+
+# Machine-readable JSON output:
+python -m DB_Assistant.cli.main orchestrate "For each region list top 5 companies by total principal" --no-exec --json | jq .
+```
 
 ## 18. Future Enhancements (Backlog Ideas)
 - Materialized view creation suggestions
@@ -282,5 +306,17 @@ Internal architectural scaffold. No external proprietary content embedded. Azure
 
 ---
 **Status:** Planning complete. Awaiting instruction to scaffold Phase 0. 
+ 
+## 22. CI & Safety Additions
+- CI pipeline (`db_assistant_ci.yml`) runs tests, generates a sample migration + impact JSON as artifacts on PRs and main pushes.
+- `apply` command now refuses to run high-risk operations unless `--allow-breaking` is specified (and an impact sidecar file marks them as high).
+- `plan --impact-meta` creates `yourplan.sql.impact.json` enabling automated gating.
+
+### Example Gated Apply Flow
+```bash
+python -m DB_Assistant.cli.main plan --target target.yml --current current.yml --out migrations/20250905_add_changes.sql --impact-meta
+python -m DB_Assistant.cli.main apply migrations/20250905_add_changes.sql   # may block
+python -m DB_Assistant.cli.main apply migrations/20250905_add_changes.sql --allow-breaking  # override
+```
 
 > Provide "Proceed Phase 0" (or adjustments) to continue.

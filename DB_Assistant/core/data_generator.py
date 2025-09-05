@@ -68,15 +68,19 @@ def generate_dimension_rows(dim: Dimension, cfg: Dict[str, Any]) -> list[dict[st
         for d in _daterange(start, end):
             row = {}
             for col in dim.columns:
-                if col.name.endswith("date"):
+                if col.name == dim.surrogate_key:
+                    # Populate surrogate key deterministically (e.g., 20250101)
+                    row[col.name] = int(d.strftime("%Y%m%d"))
+                elif col.name.endswith("date"):
                     row[col.name] = d.isoformat()
                 elif col.name.endswith("_key"):
+                    # Other *_key columns (if any) left None for now
                     row[col.name] = None
                 else:
                     row[col.name] = None
-            # Surrogate key auto
+            # If surrogate key declared but not an explicit column (fallback)
             if dim.surrogate_key and dim.surrogate_key not in row:
-                row[dim.surrogate_key] = int(d.strftime("%Y%m%d"))  # date_key style
+                row[dim.surrogate_key] = int(d.strftime("%Y%m%d"))
             rows.append(row)
         return rows
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Optional, Dict
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 VALID_TYPES = {
@@ -18,14 +18,16 @@ class Column(BaseModel):
     nullable: bool = True
     description: Optional[str] = None
 
-    @validator("name")
-    def snake_case(cls, v: str) -> str:  # noqa: N805
+    @field_validator("name")
+    @classmethod
+    def snake_case(cls, v: str) -> str:
         if v.lower() != v or " " in v:
             raise ValueError(f"Column name '{v}' must be snake_case and lower.")
         return v
 
-    @validator("type")
-    def known_type(cls, v: str) -> str:  # noqa: N805
+    @field_validator("type")
+    @classmethod
+    def known_type(cls, v: str) -> str:
         if v.upper() not in VALID_TYPES:
             raise ValueError(f"Type '{v}' not in whitelist (extend VALID_TYPES to allow).")
         return v.upper()
@@ -49,8 +51,9 @@ class Dimension(BaseModel):
     columns: List[Column]
     indexes: List[Index] = Field(default_factory=list)
 
-    @validator("name")
-    def prefix_dim(cls, v: str) -> str:  # noqa: N805
+    @field_validator("name")
+    @classmethod
+    def prefix_dim(cls, v: str) -> str:
         if not v.startswith("dim_"):
             raise ValueError("Dimension tables must start with 'dim_'.")
         return v
@@ -64,8 +67,9 @@ class Fact(BaseModel):
     columns: List[Column] = Field(default_factory=list)
     indexes: List[Index] = Field(default_factory=list)
 
-    @validator("name")
-    def prefix_fact(cls, v: str) -> str:  # noqa: N805
+    @field_validator("name")
+    @classmethod
+    def prefix_fact(cls, v: str) -> str:
         if not v.startswith("fact_"):
             raise ValueError("Fact tables must start with 'fact_'.")
         return v

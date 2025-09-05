@@ -1,0 +1,51 @@
+name: DB Assistant CI
+
+on:
+  pull_request:
+    paths:
+      - 'DB_Assistant/**'
+      - '.github/workflows/db_assistant_ci.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'DB_Assistant/**'
+
+jobs:
+  build-test-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r DB_Assistant/requirements.txt
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          pytest DB_Assistant/tests -q
+      - name: Generate sample plan & impact (if specs present)
+        run: |
+          source .venv/bin/activate
+          if [ -f DB_Assistant/schema_specs/live_post_enhancements.yml ] && [ -f DB_Assistant/schema_specs/live_after_alter_drop.yml ]; then \
+            python -m DB_Assistant.cli.main plan --target DB_Assistant/schema_specs/live_after_alter_drop.yml --current DB_Assistant/schema_specs/live_post_enhancements.yml --out migration_preview.sql --impact-meta; \
+            echo '--- MIGRATION SQL (first 100 lines) ---'; head -n 100 migration_preview.sql; \
+            echo '--- IMPACT JSON ---'; cat migration_preview.sql.impact.json; \
+          else \
+            echo 'Schema specs not found, skipping plan demo.'; \
+          fi
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-preview
+          path: |
+            migration_preview.sql
+            migration_preview.sql.impact.json
+          if-no-files-found: ignore
