@@ -1,6 +1,6 @@
 # DB Assistant – Natural Language Driven Schema & Data Orchestration
 
-_Date: 2025-09-05_
+_Date: 2025-09-08_ Arturo Quiroga
 
 ## 1. Objectives
 Provide a reusable, demo‑friendly system to go from natural language ("create a star schema for loan risk analysis") to:
