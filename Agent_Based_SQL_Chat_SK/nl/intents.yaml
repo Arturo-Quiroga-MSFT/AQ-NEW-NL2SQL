@@ -1,0 +1,59 @@
+# Data-driven intent catalog
+# patterns: full-match regex (after normalization)
+# slot_pattern: regex with named groups for slot extraction
+# semantic_aliases: phrases used for embedding similarity (future phase)
+
+- id: list_tables
+  patterns:
+    - '^(list|show) (all )?tables$'
+    - '^show schema( of (db|database))?$'
+  semantic_aliases:
+    - 'what tables exist'
+    - 'show me the schema'
+    - 'schema overview'
+    - 'show database schema'
+
+- id: describe_table
+  slot_pattern: '^(describe|show|examine) table (?P<table>[a-z0-9_.]+)$'
+  semantic_aliases:
+    - 'table structure'
+    - 'columns of'
+
+- id: row_count
+  slot_pattern: '^row count for (?P<table>[a-z0-9_.]+)$'
+  semantic_aliases:
+    - 'how many rows in'
+
+- id: drop_table
+  slot_pattern: '^drop table (?P<table>[a-z0-9_.]+)$'
+  semantic_aliases:
+    - 'delete table'
+
+- id: create_table
+  slot_pattern: '^create table (?P<table>[a-z0-9_.]+) with columns (?P<cols>.+)$'
+  semantic_aliases:
+    - 'new table'
+    - 'define table'
+
+- id: add_column
+  slot_pattern: '^add column (?P<column>[a-z0-9_]+) (?P<ctype>[a-z0-9()]+) to (?P<table>[a-z0-9_.]+)$'
+  semantic_aliases:
+    - 'append column'
+
+- id: drop_column
+  slot_pattern: '^drop column (?P<column>[a-z0-9_]+) from (?P<table>[a-z0-9_.]+)$'
+  semantic_aliases:
+    - 'remove column'
+
+- id: create_index
+  slot_pattern: '^create index on (?P<table>[a-z0-9_.]+)\((?P<cols>[^)]+)\)$'
+  semantic_aliases:
+    - 'add index'
+
+- id: star_overview
+  patterns:
+    - '^list star overview$'
+  semantic_aliases:
+    - 'star summary'
+
+# Future: orphan_check, null_density, top_values etc.
