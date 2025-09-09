@@ -73,3 +73,5 @@ teradata-customer-intelligence-framework.png
 answers.txt
 
 update-repo-without-triggeringCICD.sh
+
+temp/

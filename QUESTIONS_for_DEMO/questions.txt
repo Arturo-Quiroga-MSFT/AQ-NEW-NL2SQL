@@ -1,0 +1,194 @@
+Here are some challenging questions you can ask about the database contents, 
+focusing only on the base tables (not views):
+
+Which company has the highest total outstanding loan amount, and what is that amount?
+For each loan, what is the total value of collateral pledged, and which loans are under-collateralized?
+List all companies whose risk metrics have worsened over the last 12 months.
+For each company, what is the average time between loan disbursement and the first payment event?
+Which covenants have been breached most frequently, and by which companies?
+Identify all loans that have missed a scheduled payment in the last year.
+For each region (using company addresses), what is the aggregate loan exposure and number of active loans?
+Find all companies with more than one parent company (data integrity check).
+For each company, what is the trend of their risk metric history over time (improving, worsening, stable)?
+List all loans where the sum of payment events does not match the payment schedule.
+
+These questions require complex joins, aggregations, and time-based analysis, making them "hard" 
+and ensuring they cannot be answered by simple queries or views. Let me know if you want the SQL for any of these!
+
+---
+
+SQL QUERIES FOR THE FIRST THREE QUESTIONS:
+
+1. Which company has the highest total principal loan amount, and what is that amount?
+
+```sql
+SELECT TOP 1
+    c.CompanyId,
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipal
+FROM
+    dbo.Company c
+    JOIN dbo.Loan l ON c.CompanyId = l.CompanyId
+GROUP BY
+    c.CompanyId, c.CompanyName
+ORDER BY
+    TotalPrincipal DESC;
+```
+
+2. For each loan, what is the total value of collateral pledged, and which loans are under-collateralized?
+
+```sql
+SELECT
+    l.LoanId,
+    l.PrincipalAmount,
+    COALESCE(SUM(col.ValueAmount), 0) AS TotalCollateral,
+    CASE
+        WHEN COALESCE(SUM(col.ValueAmount), 0) < l.PrincipalAmount THEN 'Under-collateralized'
+        ELSE 'Adequately collateralized'
+    END AS CollateralStatus
+FROM
+    dbo.Loan l
+    LEFT JOIN dbo.Collateral col ON l.LoanId = col.LoanId
+GROUP BY
+    l.LoanId, l.PrincipalAmount;
+```
+
+3. List all companies whose risk metric value has worsened over the last 12 months.
+
+```sql
+SELECT
+    c.CompanyId,
+    c.CompanyName
+FROM
+    dbo.Company c
+    JOIN dbo.RiskMetricHistory r1 ON c.CompanyId = r1.CompanyId
+    JOIN dbo.RiskMetricHistory r2 ON c.CompanyId = r2.CompanyId
+WHERE
+    r1.AsOfDate = (SELECT MAX(rh.AsOfDate) FROM dbo.RiskMetricHistory rh WHERE rh.CompanyId = c.CompanyId)
+    AND r2.AsOfDate = (SELECT MIN(rh.AsOfDate) FROM dbo.RiskMetricHistory rh WHERE rh.CompanyId = c.CompanyId AND rh.AsOfDate >= DATEADD(year, -1, GETDATE()))
+    AND r1.MetricValue > r2.MetricValue;
+```
+
+---
+
+SQL QUERIES FOR THE REMAINING SEVEN QUESTIONS:
+
+4. For each company, what is the average time between loan disbursement and the first payment event?
+
+```sql
+SELECT
+    c.CompanyId,
+    c.CompanyName,
+    AVG(DATEDIFF(day, l.OriginationDate, pe.FirstPaymentDate)) AS AvgDaysToFirstPayment
+FROM
+    dbo.Company c
+    JOIN dbo.Loan l ON c.CompanyId = l.CompanyId
+    JOIN (
+        SELECT
+            LoanId,
+            MIN(EventDate) AS FirstPaymentDate
+        FROM dbo.PaymentEvent
+        GROUP BY LoanId
+    ) pe ON l.LoanId = pe.LoanId
+GROUP BY c.CompanyId, c.CompanyName;
+```
+
+5. Which covenants have been breached most frequently, and by which companies?
+
+```sql
+SELECT
+    c.CovenantId,
+    cov.CovenantType,
+    l.CompanyId,
+    COUNT(*) AS BreachCount
+FROM
+    dbo.CovenantTestResult c
+    JOIN dbo.Covenant cov ON c.CovenantId = cov.CovenantId
+    JOIN dbo.Loan l ON c.LoanId = l.LoanId
+WHERE
+    c.Status = 'Breached'
+GROUP BY c.CovenantId, cov.CovenantType, l.CompanyId
+ORDER BY BreachCount DESC;
+```
+
+6. Identify all loans that have missed a scheduled payment in the last year.
+
+```sql
+SELECT
+    l.LoanId,
+    l.LoanNumber,
+    ps.PaymentNumber,
+    ps.DueDate
+FROM
+    dbo.Loan l
+    JOIN dbo.PaymentSchedule ps ON l.LoanId = ps.LoanId
+WHERE
+    ps.DueDate >= DATEADD(year, -1, GETDATE())
+    AND ps.PaidFlag = 0;
+```
+
+7. For each region (using company addresses), what is the aggregate loan exposure and number of active loans?
+
+```sql
+SELECT
+    ca.CountryCode,
+    COUNT(l.LoanId) AS NumActiveLoans,
+    SUM(l.PrincipalAmount) AS TotalExposure
+FROM
+    dbo.CompanyAddress ca
+    JOIN dbo.Company c ON ca.CompanyId = c.CompanyId
+    JOIN dbo.Loan l ON c.CompanyId = l.CompanyId
+WHERE
+    l.Status = 'Active'
+GROUP BY ca.CountryCode;
+```
+
+8. Find all companies with more than one parent company (data integrity check).
+
+```sql
+SELECT
+    cp.CompanyId,
+    COUNT(DISTINCT cp.ParentCompanyId) AS NumParents
+FROM
+    dbo.CustomerProfile cp
+WHERE
+    cp.ParentCompanyId IS NOT NULL
+GROUP BY cp.CompanyId
+HAVING COUNT(DISTINCT cp.ParentCompanyId) > 1;
+```
+
+9. For each company, what is the trend of their risk metric history over time (improving, worsening, stable)?
+
+```sql
+SELECT
+    c.CompanyId,
+    c.CompanyName,
+    CASE
+        WHEN MIN(rh.MetricValue) = MAX(rh.MetricValue) THEN 'Stable'
+        WHEN MIN(rh.AsOfDate) = MAX(rh.AsOfDate) THEN 'Stable'
+        WHEN (SELECT TOP 1 rh2.MetricValue FROM dbo.RiskMetricHistory rh2 WHERE rh2.CompanyId = c.CompanyId ORDER BY rh2.AsOfDate ASC) >
+             (SELECT TOP 1 rh3.MetricValue FROM dbo.RiskMetricHistory rh3 WHERE rh3.CompanyId = c.CompanyId ORDER BY rh3.AsOfDate DESC)
+            THEN 'Improving'
+        ELSE 'Worsening'
+    END AS Trend
+FROM
+    dbo.Company c
+    JOIN dbo.RiskMetricHistory rh ON c.CompanyId = rh.CompanyId
+GROUP BY c.CompanyId, c.CompanyName;
+```
+
+10. List all loans where the sum of payment events does not match the payment schedule.
+
+```sql
+SELECT
+    l.LoanId,
+    l.LoanNumber,
+    SUM(pe.Amount) AS TotalPaid,
+    SUM(ps.TotalDue) AS TotalScheduled
+FROM
+    dbo.Loan l
+    LEFT JOIN dbo.PaymentEvent pe ON l.LoanId = pe.LoanId
+    LEFT JOIN dbo.PaymentSchedule ps ON l.LoanId = ps.LoanId
+GROUP BY l.LoanId, l.LoanNumber
+HAVING SUM(pe.Amount) <> SUM(ps.TotalDue);
+```
