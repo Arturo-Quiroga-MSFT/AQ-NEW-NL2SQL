@@ -56,6 +56,27 @@ These relationships show a strong focus on companies, loans, covenants, payments
 
 ---
 
+---
+
+**User:** this is what you completed,  I added an idempotent seed extension script directly via SQL execution; the tool reports “Query has no results to return,” which is expected because the script only prints status messages and doesn’t return a result set. 
+
+What was done:
+- Added 5 new companies (Aurora Robotics AB, Solaris Grid SpA, Outback Agritech Pty, Andes Lithium SA, Helios BioHealth SAS)
+- Added HQ addresses and customer profiles for each
+- Added 5 new loans with varied structures (amortizing, interest-only, floating vs fixed, active/defaulted/closed)
+- Added diverse collateral items (including under/over collateralization scenarios)
+- Inserted initial payment schedules (mix of paid and unpaid/later periods)
+- Inserted payment events (on time, late, partial, interest-only)
+- Created covenants, schedules, and test results (including breaches)
+- Added risk metric history showing improving vs worsening trends
+
+Because the script has an idempotence guard (checks for Aurora Robotics AB), re-running it will skip inserts.
+
+now, I want you to:
+- Verification queries to confirm row deltas
+- A saved `.sql` seed file in the repo for reuse
+
+**Assistant:**
 **User:** create a diagram
 
 **Assistant:**
@@ -80,7 +101,6 @@ Here is a text-based entity-relationship diagram (ERD) for the dbo schema, showi
                                                                 |
                                                         [CovenantTestResult]
                                                         (CovenantId, LoanId)
-
 [dim_company] <--- [fact_loan_payments] ---> [dim_date]
    (company_key)         (company_key, date_key)      (date_key)
 ```
@@ -92,7 +112,6 @@ Here is a text-based entity-relationship diagram (ERD) for the dbo schema, showi
 If you want a graphical diagram (e.g., Mermaid or Graphviz), let me know your preferred format!
 
 ---
-
 **User:** graphviz
 
 **Assistant:**
@@ -115,13 +134,6 @@ digraph CONTOSO_FI_DBO {
 }
 ```
 
----
-
-**User:** how can I render the .dot file
-
-**Assistant:**
-To render a `.dot` file, you can use Graphviz. On macOS, install it with:
-
 ```sh
 brew install graphviz
 ```
@@ -130,14 +142,8 @@ Then render your file (e.g., to PNG):
 
 ```sh
 dot -Tpng /Users/arturoquiroga/GITHUB/AQ-NEW-NL2SQL/temp/one.dot -o /Users/arturoquiroga/GITHUB/AQ-NEW-NL2SQL/temp/one.png
-```
-
-You can also use `-Tpdf` for PDF output. Open the result with your preferred image or PDF viewer.
 
 ---
-
-**User:** what kind of questions do you recoomend I ask about the DB contents that woudl not use any of the views for answering them, I want hard questions
-
 **Assistant:**
 Here are some challenging questions you can ask about the database contents, focusing only on the base tables (not views):
 
@@ -377,25 +383,4 @@ Let me know which follow-up you want and I can proceed.
 ```
 ---
 
-### Latest Iteration: Seed Extension & Verification
 
-**User Summary:** Requested addition of verification queries and a reusable seed file reflecting the new 5-company data enrichment.
-
-**Assistant Added Files:**
-- `DATABASE_SETUP/seed_new_companies_loans.sql` (idempotent seed guarded by presence of 'Aurora Robotics AB')
-- `DATABASE_SETUP/verify_new_seed_deltas.sql` (row delta & integrity verification queries)
-
-**Seeded Data Scope:**
-- 5 companies + customer profiles
-- 5 loans (varied amortization types, interest types, statuses Active/Defaulted/Closed)
-- Collateral entries (over & under collateralization scenarios)
-- Initial 6 payment schedule periods per loan with payment status adjustments (on‑time, late, overdue)
-- Covenants (DSCR_Min, Leverage_Max) + 3 historic covenant test results each (Met / Breached / Waived)
-- Risk metric history (PD, LGD, EAD, RiskScore, Trend: Improving / Worsening / Stable)
-
-**Verification Coverage:**
-Idempotence check, counts, collateralization ratios, schedule status distribution, covenant status mix, test recency, risk trend aggregation, uniqueness/integrity.
-
-**Idempotence Mechanism:** Early RETURN if 'Aurora Robotics AB' already exists in `dbo.Company`.
-
-**Proposed Next Enhancements:** Rollback script, CI migration smoke test, extended schedules, richer payment event patterns.
