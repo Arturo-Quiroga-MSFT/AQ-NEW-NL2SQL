@@ -9,7 +9,7 @@
 **User:** using the mssql mcp server you have access to, and its tools, what is the schema of the db
 
 **Assistant:**
-'''
+```
 The CONTOSO-FI database has the following schema:
 
 - Schemas: dbo, ref, and several system/admin schemas.
@@ -17,13 +17,13 @@ The CONTOSO-FI database has the following schema:
 - Tables in ref: Country, Currency, FXRateDaily, ReferenceRate, Region, Subregion.
 
 If you need the columns or relationships for any specific table, let me know!
-'''
+```
 ---
 
 **User:** focus on the dbo schema, and tell me more about what the DB is about
 
 **Assistant:**
-'''
+```
 The dbo schema contains tables related to financial entities, loans, payments, companies, covenants, and risk metrics. This suggests the database is designed for managing and analyzing financial data, likely for a lending or financial services platform. It tracks companies, their loans, collateral, payment schedules, covenants, and risk metrics.
 
 If you want detailed columns or relationships for specific tables, let me know!
@@ -33,6 +33,7 @@ If you want detailed columns or relationships for specific tables, let me know!
 **User:** show me the table realationships
 
 **Assistant:**
+
 Here are the table relationships in the dbo schema of the CONTOSO-FI database:
 
 - Collateral → Loan (Collateral.LoanId → Loan.LoanId)
