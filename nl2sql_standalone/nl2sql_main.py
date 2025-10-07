@@ -541,6 +541,20 @@ def main(argv=None) -> int:
     start = time.time()
     output_lines = []
 
+    # Display model information
+    model_name = DEPLOYMENT_NAME or "Unknown"
+    model_type = "Reasoning Model (o-series/GPT-5)" if _USING_REASONING_STYLE else "Standard Model"
+    print(colored_banner("MODEL INFORMATION", Colors.CYAN))
+    print(f"Deployment: {model_name}")
+    print(f"Type: {model_type}")
+    print(f"Endpoint: {ENDPOINT}")
+    print(f"API Version: {API_VERSION}\n")
+    output_lines.append(plain_banner("MODEL INFORMATION"))
+    output_lines.append(f"Deployment: {model_name}\n")
+    output_lines.append(f"Type: {model_type}\n")
+    output_lines.append(f"Endpoint: {ENDPOINT}\n")
+    output_lines.append(f"API Version: {API_VERSION}\n")
+
     # 1) Get user query (diagram: NATURAL LANGUAGE INPUT)
     if args.query:
         query = args.query
