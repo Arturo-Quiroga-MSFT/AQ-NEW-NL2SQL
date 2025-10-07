@@ -1,0 +1,84 @@
+Query: List all risk metrics for companies in the Technology industry.
+
+Intent & Entities (JSON):
+{
+  "intent": "Retrieve all available risk metric values for each company classified in the Technology industry. Join Companies (with industry/sector classification) to RiskMetrics/RiskMetricValues (and optionally MetricDefinitions), filter industry = \"Technology,\" and return all metric names and values per company; no aggregation, and if metrics are time-stamped, use the latest effective date by default."
+}
+
+Reasoning / Plan:
+Heuristic reasoning (fallback):
+- Identify core entity: RiskMetricHistory joined to Company for industry filter
+- Filter Company.Industry = 'Technology'
+- Select relevant columns (CompanyName, MetricName, MetricValue, AsOfDate) ordered by Company then date
+- No aggregation required (list all metrics) unless dedup needed
+- Consider limiting date range if implied (not specified here)
+
+Generated SQL:
+WITH TechCompanies AS (
+  SELECT
+    c.CompanyId,
+    c.CompanyName,
+    COALESCE(NULLIF(LTRIM(RTRIM(c.Industry)), ''), 'Unknown') AS Industry,
+    c.CountryCode,
+    COALESCE(ct.CountryName, 'Unknown') AS CountryName,
+    ct.RegionId,
+    COALESCE(r.RegionName, 'Unknown') AS RegionName
+  FROM dbo.Company c
+  LEFT JOIN ref.Country ct ON c.CountryCode = ct.CountryCode
+  LEFT JOIN ref.Region r ON ct.RegionId = r.RegionId
+  WHERE UPPER(LTRIM(RTRIM(c.Industry))) = 'TECHNOLOGY'
+)
+SELECT
+  t.CompanyId,
+  t.CompanyName,
+  t.Industry,
+  t.CountryName,
+  t.RegionName,
+  rm.AsOfDate,
+  rm.MetricName,
+  rm.MetricValue,
+  rm.Source
+FROM TechCompanies t
+JOIN dbo.RiskMetricHistory rm ON rm.CompanyId = t.CompanyId
+ORDER BY t.CompanyName, rm.AsOfDate DESC, rm.MetricName
+
+Sanitized SQL:
+WITH TechCompanies AS (
+  SELECT
+    c.CompanyId,
+    c.CompanyName,
+    COALESCE(NULLIF(LTRIM(RTRIM(c.Industry)), ''), 'Unknown') AS Industry,
+    c.CountryCode,
+    COALESCE(ct.CountryName, 'Unknown') AS CountryName,
+    ct.RegionId,
+    COALESCE(r.RegionName, 'Unknown') AS RegionName
+  FROM dbo.Company c
+  LEFT JOIN ref.Country ct ON c.CountryCode = ct.CountryCode
+  LEFT JOIN ref.Region r ON ct.RegionId = r.RegionId
+  WHERE UPPER(LTRIM(RTRIM(c.Industry))) = 'TECHNOLOGY'
+)
+SELECT
+  t.CompanyId,
+  t.CompanyName,
+  t.Industry,
+  t.CountryName,
+  t.RegionName,
+  rm.AsOfDate,
+  rm.MetricName,
+  rm.MetricValue,
+  rm.Source
+FROM TechCompanies t
+JOIN dbo.RiskMetricHistory rm ON rm.CompanyId = t.CompanyId
+ORDER BY t.CompanyName, rm.AsOfDate DESC, rm.MetricName
+
+Results Preview:
+CompanyId | CompanyName          | Industry   | CountryName | RegionName | AsOfDate   | MetricName | MetricValue | Source
+----------+----------------------+------------+-------------+------------+------------+------------+-------------+-------
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-06-30 | DSCR       | 1.1000      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-06-30 | Leverage   | 2.7100      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-03-31 | DSCR       | 1.1800      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2025-03-31 | Leverage   | 3.1100      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2024-12-31 | DSCR       | 1.2600      | Model 
+13        | Amsterdam FinTech BV | Technology | Netherlands | Europe     | 2024-12-31 | Leverage   | 3.8600      | Model 
+
+Total pipeline execution time: 70.12 seconds

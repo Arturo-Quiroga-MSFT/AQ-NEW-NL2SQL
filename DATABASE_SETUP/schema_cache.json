@@ -76,6 +76,28 @@
       "CreditOfficer",
       "RiskAppetite"
     ],
+    "dbo.db_assistant_migrations": [
+      "hash",
+      "file_name",
+      "applied_utc"
+    ],
+    "dbo.dim_company": [
+      "company_key",
+      "company_id",
+      "region",
+      "industry"
+    ],
+    "dbo.dim_date": [
+      "date_key",
+      "calendar_date"
+    ],
+    "dbo.fact_loan_payments": [
+      "loan_id",
+      "principal_paid",
+      "interest_paid",
+      "company_key",
+      "date_key"
+    ],
     "dbo.Loan": [
       "LoanId",
       "CompanyId",
@@ -93,6 +115,35 @@
       "Purpose",
       "Status",
       "ReferenceRateCode"
+    ],
+    "dbo.LoanDelinquencyFeaturesSnapshot": [
+      "loan_id",
+      "company_id",
+      "snapshot_date",
+      "loan_age_days",
+      "days_to_maturity",
+      "principal_amount",
+      "interest_rate_pct",
+      "payment_freq_months",
+      "spread_bps",
+      "scheduled_principal_due_next_30d",
+      "scheduled_total_due_next_30d",
+      "past_due_amount_total",
+      "past_due_amount_30d",
+      "missed_payments_30d_count",
+      "dpd_max",
+      "pct_schedule_paid_90d",
+      "payments_last_30d_amount",
+      "payments_last_90d_amount",
+      "payment_events_last_30d_count",
+      "avg_payment_amount_90d",
+      "last_payment_days_ago",
+      "covenant_breach_count_180d",
+      "last_breach_days_ago",
+      "collateral_latest_value",
+      "collateral_coverage_ratio",
+      "esg_score",
+      "delinquent_30d"
     ],
     "dbo.PaymentEvent": [
       "PaymentEventId",
@@ -226,6 +277,18 @@
       "from_column": "ParentCompanyId",
       "to_table": "dbo.Company",
       "to_column": "CompanyId"
+    },
+    {
+      "from_table": "dbo.fact_loan_payments",
+      "from_column": "company_key",
+      "to_table": "dbo.dim_company",
+      "to_column": "company_key"
+    },
+    {
+      "from_table": "dbo.fact_loan_payments",
+      "from_column": "date_key",
+      "to_table": "dbo.dim_date",
+      "to_column": "date_key"
     },
     {
       "from_table": "dbo.Loan",
