@@ -1,0 +1,224 @@
+
+========== MODEL INFORMATION ==========
+Azure AI Project: https://aq-ai-foundry-sweden-central.services.ai.azure.com/api/projects/firstProject
+Model Deployment: gpt-4.1
+Agent Service: Azure AI Foundry
+
+========== NATURAL LANGUAGE QUERY ==========
+show me the schema of the deb and some good questions a user woudl ask to get bsuiness insights form teh DB
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "describe",
+  "entity": ["database schema", "tables", "columns"],
+  "metrics": [],
+  "filters": [],
+  "group_by": []
+}
+
+# Analysis
+
+1. **Intent**: The user wants to view the schema of the database ("show me the schema of the db"). They also want example questions for business insights (not a direct database query).
+2. **Entity**: The database schema is the primary entity. This includes tables and columns.
+3. **Metrics**: None directly requested in the user query.
+4. **Filters**: No filters expressed.
+5. **Group_by**: No groupings expressed.
+
+
+========== GENERATED SQL (RAW) ==========
+SELECT 
+    t.TABLE_SCHEMA AS [Schema],
+    t.TABLE_NAME AS [TableName],
+    c.COLUMN_NAME AS [ColumnName],
+    c.DATA_TYPE AS [DataType],
+    c.CHARACTER_MAXIMUM_LENGTH AS [MaxLength],
+    c.IS_NULLABLE AS [IsNullable]
+FROM 
+    INFORMATION_SCHEMA.TABLES t
+INNER JOIN 
+    INFORMATION_SCHEMA.COLUMNS c
+    ON t.TABLE_SCHEMA = c.TABLE_SCHEMA
+    AND t.TABLE_NAME = c.TABLE_NAME
+WHERE 
+    t.TABLE_TYPE = 'BASE TABLE'
+ORDER BY 
+    t.TABLE_SCHEMA, t.TABLE_NAME, c.ORDINAL_POSITION
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Schema | TableName                       | ColumnName                       | DataType  | MaxLength | IsNullable
+-------+---------------------------------+----------------------------------+-----------+-----------+-----------
+dbo    | Collateral                      | CollateralId                     | bigint    | None      | NO        
+dbo    | Collateral                      | LoanId                           | bigint    | None      | NO        
+dbo    | Collateral                      | CollateralType                   | varchar   | 30        | NO        
+dbo    | Collateral                      | Description                      | nvarchar  | 200       | YES       
+dbo    | Collateral                      | Jurisdiction                     | nvarchar  | 100       | YES       
+dbo    | Collateral                      | ValueAmount                      | decimal   | None      | NO        
+dbo    | Collateral                      | CurrencyCode                     | char      | 3         | NO        
+dbo    | Collateral                      | ValuationDate                    | date      | None      | NO        
+dbo    | Collateral                      | Status                           | varchar   | 20        | NO        
+dbo    | Company                         | CompanyId                        | bigint    | None      | NO        
+dbo    | Company                         | CompanyName                      | nvarchar  | 200       | NO        
+dbo    | Company                         | CountryCode                      | char      | 2         | NO        
+dbo    | Company                         | Industry                         | nvarchar  | 100       | YES       
+dbo    | Company                         | CreditRating                     | varchar   | 8         | YES       
+dbo    | Company                         | FoundedYear                      | smallint  | None      | YES       
+dbo    | Company                         | EmployeeCount                    | int       | None      | YES       
+dbo    | CompanyAddress                  | AddressId                        | bigint    | None      | NO        
+dbo    | CompanyAddress                  | CompanyId                        | bigint    | None      | NO        
+dbo    | CompanyAddress                  | AddressType                      | varchar   | 20        | NO        
+dbo    | CompanyAddress                  | Line1                            | nvarchar  | 200       | YES       
+dbo    | CompanyAddress                  | City                             | nvarchar  | 100       | YES       
+dbo    | CompanyAddress                  | StateProvince                    | nvarchar  | 100       | YES       
+dbo    | CompanyAddress                  | PostalCode                       | nvarchar  | 20        | YES       
+dbo    | CompanyAddress                  | CountryCode                      | char      | 2         | NO        
+dbo    | CompanyAddress                  | Latitude                         | decimal   | None      | YES       
+dbo    | CompanyAddress                  | Longitude                        | decimal   | None      | YES       
+dbo    | CompanyAddress                  | EffectiveDate                    | date      | None      | YES       
+dbo    | Covenant                        | CovenantId                       | bigint    | None      | NO        
+dbo    | Covenant                        | LoanId                           | bigint    | None      | NO        
+dbo    | Covenant                        | CovenantType                     | varchar   | 40        | NO        
+dbo    | Covenant                        | Operator                         | varchar   | 2         | NO        
+dbo    | Covenant                        | Threshold                        | decimal   | None      | NO        
+dbo    | Covenant                        | Frequency                        | varchar   | 20        | NO        
+dbo    | Covenant                        | LastTestDate                     | date      | None      | YES       
+dbo    | Covenant                        | Status                           | varchar   | 20        | NO        
+dbo    | Covenant                        | Notes                            | nvarchar  | 200       | YES       
+dbo    | CovenantSchedule                | CovenantScheduleId               | bigint    | None      | NO        
+dbo    | CovenantSchedule                | CovenantId                       | bigint    | None      | NO        
+dbo    | CovenantSchedule                | TestDueDate                      | date      | None      | NO        
+dbo    | CovenantSchedule                | RequiredOperator                 | varchar   | 5         | YES       
+dbo    | CovenantSchedule                | RequiredThreshold                | decimal   | None      | YES       
+dbo    | CovenantSchedule                | NotificationDays                 | smallint  | None      | YES       
+dbo    | CovenantTestResult              | TestResultId                     | bigint    | None      | NO        
+dbo    | CovenantTestResult              | CovenantId                       | bigint    | None      | NO        
+dbo    | CovenantTestResult              | LoanId                           | bigint    | None      | NO        
+dbo    | CovenantTestResult              | TestDate                         | date      | None      | NO        
+dbo    | CovenantTestResult              | Status                           | varchar   | 20        | NO        
+dbo    | CovenantTestResult              | ObservedValue                    | decimal   | None      | YES       
+dbo    | CovenantTestResult              | Notes                            | nvarchar  | 200       | YES       
+dbo    | CustomerProfile                 | CustomerProfileId                | bigint    | None      | NO        
+dbo    | CustomerProfile                 | CompanyId                        | bigint    | None      | NO        
+dbo    | CustomerProfile                 | LegalName                        | nvarchar  | 200       | NO        
+dbo    | CustomerProfile                 | TaxId                            | nvarchar  | 50        | YES       
+dbo    | CustomerProfile                 | ParentCompanyId                  | bigint    | None      | YES       
+dbo    | CustomerProfile                 | OwnershipType                    | nvarchar  | 50        | YES       
+dbo    | CustomerProfile                 | ESGScore                         | decimal   | None      | YES       
+dbo    | CustomerProfile                 | AnnualRevenueUSD                 | decimal   | None      | YES       
+dbo    | CustomerProfile                 | Headcount                        | int       | None      | YES       
+dbo    | CustomerProfile                 | Website                          | nvarchar  | 200       | YES       
+dbo    | CustomerProfile                 | IncorporationDate                | date      | None      | YES       
+dbo    | CustomerProfile                 | CreditOfficer                    | nvarchar  | 100       | YES       
+dbo    | CustomerProfile                 | RiskAppetite                     | nvarchar  | 50        | YES       
+dbo    | db_assistant_migrations         | hash                             | varchar   | 64        | NO        
+dbo    | db_assistant_migrations         | file_name                        | nvarchar  | 400       | YES       
+dbo    | db_assistant_migrations         | applied_utc                      | datetime2 | None      | NO        
+dbo    | dim_company                     | company_key                      | int       | None      | NO        
+dbo    | dim_company                     | company_id                       | varchar   | 50        | NO        
+dbo    | dim_company                     | region                           | varchar   | 40        | NO        
+dbo    | dim_company                     | industry                         | varchar   | 60        | YES       
+dbo    | dim_date                        | date_key                         | int       | None      | NO        
+dbo    | dim_date                        | calendar_date                    | date      | None      | NO        
+dbo    | fact_loan_payments              | loan_id                          | varchar   | 50        | NO        
+dbo    | fact_loan_payments              | principal_paid                   | decimal   | None      | NO        
+dbo    | fact_loan_payments              | interest_paid                    | decimal   | None      | NO        
+dbo    | fact_loan_payments              | company_key                      | int       | None      | NO        
+dbo    | fact_loan_payments              | date_key                         | int       | None      | NO        
+dbo    | Loan                            | LoanId                           | bigint    | None      | NO        
+dbo    | Loan                            | CompanyId                        | bigint    | None      | NO        
+dbo    | Loan                            | LoanNumber                       | varchar   | 40        | NO        
+dbo    | Loan                            | OriginationDate                  | date      | None      | NO        
+dbo    | Loan                            | MaturityDate                     | date      | None      | NO        
+dbo    | Loan                            | PrincipalAmount                  | decimal   | None      | NO        
+dbo    | Loan                            | CurrencyCode                     | char      | 3         | NO        
+dbo    | Loan                            | InterestRatePct                  | decimal   | None      | NO        
+dbo    | Loan                            | InterestRateType                 | varchar   | 20        | NO        
+dbo    | Loan                            | ReferenceRate                    | varchar   | 20        | YES       
+dbo    | Loan                            | SpreadBps                        | smallint  | None      | YES       
+dbo    | Loan                            | AmortizationType                 | varchar   | 20        | NO        
+dbo    | Loan                            | PaymentFreqMonths                | tinyint   | None      | NO        
+dbo    | Loan                            | Purpose                          | nvarchar  | 200       | YES       
+dbo    | Loan                            | Status                           | varchar   | 20        | NO        
+dbo    | Loan                            | ReferenceRateCode                | varchar   | 20        | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | loan_id                          | bigint    | None      | NO        
+dbo    | LoanDelinquencyFeaturesSnapshot | company_id                       | bigint    | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | snapshot_date                    | date      | None      | NO        
+dbo    | LoanDelinquencyFeaturesSnapshot | loan_age_days                    | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | days_to_maturity                 | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | principal_amount                 | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | interest_rate_pct                | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | payment_freq_months              | tinyint   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | spread_bps                       | smallint  | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | scheduled_principal_due_next_30d | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | scheduled_total_due_next_30d     | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | past_due_amount_total            | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | past_due_amount_30d              | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | missed_payments_30d_count        | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | dpd_max                          | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | pct_schedule_paid_90d            | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | payments_last_30d_amount         | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | payments_last_90d_amount         | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | payment_events_last_30d_count    | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | avg_payment_amount_90d           | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | last_payment_days_ago            | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | covenant_breach_count_180d       | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | last_breach_days_ago             | int       | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | collateral_latest_value          | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | collateral_coverage_ratio        | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | esg_score                        | decimal   | None      | YES       
+dbo    | LoanDelinquencyFeaturesSnapshot | delinquent_30d                   | bit       | None      | YES       
+dbo    | PaymentEvent                    | PaymentEventId                   | bigint    | None      | NO        
+dbo    | PaymentEvent                    | LoanId                           | bigint    | None      | NO        
+dbo    | PaymentEvent                    | EventDate                        | date      | None      | NO        
+dbo    | PaymentEvent                    | EventType                        | varchar   | 20        | NO        
+dbo    | PaymentEvent                    | Amount                           | decimal   | None      | YES       
+dbo    | PaymentEvent                    | CurrencyCode                     | char      | 3         | YES       
+dbo    | PaymentEvent                    | DaysDelinquent                   | int       | None      | YES       
+dbo    | PaymentEvent                    | Notes                            | nvarchar  | 200       | YES       
+dbo    | PaymentSchedule                 | ScheduleId                       | bigint    | None      | NO        
+dbo    | PaymentSchedule                 | LoanId                           | bigint    | None      | NO        
+dbo    | PaymentSchedule                 | PaymentNumber                    | int       | None      | NO        
+dbo    | PaymentSchedule                 | DueDate                          | date      | None      | NO        
+dbo    | PaymentSchedule                 | StartingPrincipal                | decimal   | None      | NO        
+dbo    | PaymentSchedule                 | PrincipalDue                     | decimal   | None      | NO        
+dbo    | PaymentSchedule                 | InterestDue                      | decimal   | None      | NO        
+dbo    | PaymentSchedule                 | TotalDue                         | decimal   | None      | YES       
+dbo    | PaymentSchedule                 | CurrencyCode                     | char      | 3         | NO        
+dbo    | PaymentSchedule                 | Status                           | varchar   | 20        | NO        
+dbo    | PaymentSchedule                 | PaidFlag                         | bit       | None      | NO        
+dbo    | PaymentSchedule                 | PaidDate                         | date      | None      | YES       
+dbo    | PaymentSchedule                 | EndingPrincipal                  | decimal   | None      | NO        
+dbo    | RiskMetricHistory               | RiskMetricHistoryId              | bigint    | None      | NO        
+dbo    | RiskMetricHistory               | CompanyId                        | bigint    | None      | NO        
+dbo    | RiskMetricHistory               | AsOfDate                         | date      | None      | NO        
+dbo    | RiskMetricHistory               | MetricName                       | varchar   | 40        | NO        
+dbo    | RiskMetricHistory               | MetricValue                      | decimal   | None      | NO        
+dbo    | RiskMetricHistory               | Source                           | nvarchar  | 100       | YES       
+ref    | Country                         | CountryCode                      | char      | 2         | NO        
+ref    | Country                         | CountryName                      | nvarchar  | 100       | NO        
+ref    | Country                         | RegionId                         | tinyint   | None      | NO        
+ref    | Country                         | SubregionId                      | tinyint   | None      | YES       
+ref    | Currency                        | CurrencyCode                     | char      | 3         | NO        
+ref    | Currency                        | CurrencyName                     | nvarchar  | 100       | NO        
+ref    | Currency                        | Symbol                           | nvarchar  | 10        | YES       
+ref    | FXRateDaily                     | RateDate                         | date      | None      | NO        
+ref    | FXRateDaily                     | FromCurrency                     | char      | 3         | NO        
+ref    | FXRateDaily                     | ToCurrency                       | char      | 3         | NO        
+ref    | FXRateDaily                     | Rate                             | decimal   | None      | NO        
+ref    | ReferenceRate                   | ReferenceRateCode                | varchar   | 20        | NO        
+ref    | ReferenceRate                   | Description                      | nvarchar  | 200       | YES       
+ref    | ReferenceRate                   | TenorMonths                      | tinyint   | None      | YES       
+ref    | ReferenceRate                   | CurrencyCode                     | char      | 3         | YES       
+ref    | Region                          | RegionId                         | tinyint   | None      | NO        
+ref    | Region                          | RegionName                       | nvarchar  | 50        | NO        
+ref    | Subregion                       | SubregionId                      | tinyint   | None      | NO        
+ref    | Subregion                       | SubregionName                    | nvarchar  | 100       | NO        
+ref    | Subregion                       | RegionId                         | tinyint   | None      | NO        
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1568
+Completion tokens: 269
+Total tokens: 1837
+Estimated cost (USD): 0.007321  [input=0.004343, output=0.002978; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 44.06 seconds

@@ -1,0 +1,59 @@
+
+========== MODEL INFORMATION ==========
+Azure AI Project: https://aq-ai-foundry-sweden-central.services.ai.azure.com/api/projects/firstProject
+Model Deployment: gpt-4.1
+Agent Service: Azure AI Foundry
+
+========== NATURAL LANGUAGE QUERY ==========
+how many customers in Europe and who are they
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "count_and_list",
+  "entity": ["customers", "Europe"],
+  "metrics": ["number_of_customers", "customer_details"],
+  "filters": {
+    "region": "Europe"
+  },
+  "group_by": []
+}
+
+========== GENERATED SQL (RAW) ==========
+SELECT 
+    COUNT(DISTINCT c.CompanyId) AS number_of_customers,
+    c.CompanyId,
+    c.CompanyName,
+    c.Industry,
+    c.CreditRating,
+    co.CountryName,
+    r.RegionName
+FROM 
+    dbo.Company c
+    INNER JOIN ref.Country co ON c.CountryCode = co.CountryCode
+    INNER JOIN ref.Region r ON co.RegionId = r.RegionId
+WHERE 
+    r.RegionName = 'Europe'
+GROUP BY 
+    c.CompanyId,
+    c.CompanyName,
+    c.Industry,
+    c.CreditRating,
+    co.CountryName,
+    r.RegionName
+
+========== SQL QUERY RESULTS (TABLE) ==========
+number_of_customers | CompanyId | CompanyName             | Industry        | CreditRating | CountryName    | RegionName
+--------------------+-----------+-------------------------+-----------------+--------------+----------------+-----------
+1                   | 3         | Nordwind Logistics GmbH | Logistics       | BBB          | Germany        | Europe    
+1                   | 4         | Gaulois Pharma SA       | Pharmaceuticals | A            | France         | Europe    
+1                   | 5         | Thyme Retail Group      | Retail          | BBB-         | United Kingdom | Europe    
+1                   | 13        | Amsterdam FinTech BV    | Technology      | A-           | Netherlands    | Europe    
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1468
+Completion tokens: 187
+Total tokens: 1655
+Estimated cost (USD): 0.006136  [input=0.004066, output=0.002070; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+
+========== RUN DURATION ==========
+Run duration: 27.09 seconds
