@@ -1,0 +1,84 @@
+========== RUN CONFIGURATION ==========
+Timestamp: 2025-10-08 15:14:28
+Implementation: Azure AI Foundry Agent Service
+Model/Deployment: gpt-4.1
+Project Endpoint: https://aq-ai-foundry-sweden-central.services.ai.azure.com/api/projects/firstProject
+SQL Server: aqsqlserver001.database.windows.net
+Database: CONTOSO-FI
+Pipeline Options:
+  - SQL execution: enabled
+  - Explain-only mode: no
+
+========== NATURAL LANGUAGE QUERY ==========
+For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+
+========== INTENT & ENTITIES (AI AGENT) ==========
+{
+  "intent": "aggregate",
+  "entity": ["company", "loan"],
+  "metrics": ["total principal amount"],
+  "filters": ["company has loans"],
+  "group_by": ["company"],
+  "additional": {
+    "sort_by": "total principal amount",
+    "order": "desc",
+    "limit": 20
+  }
+}
+
+========== GENERATED SQL (RAW) ==========
+SELECT 
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipalAmount
+FROM 
+    dbo.Company c
+INNER JOIN 
+    dbo.Loan l ON c.CompanyId = l.CompanyId
+GROUP BY 
+    c.CompanyName
+ORDER BY 
+    TotalPrincipalAmount DESC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT 
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipalAmount
+FROM 
+    dbo.Company c
+INNER JOIN 
+    dbo.Loan l ON c.CompanyId = l.CompanyId
+GROUP BY 
+    c.CompanyName
+ORDER BY 
+    TotalPrincipalAmount DESC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+========== SQL QUERY RESULTS (TABLE) ==========
+CompanyName              | TotalPrincipalAmount
+-------------------------+---------------------
+Blue Ridge Energy Corp   | 25000000.00         
+Toronto Health Devices   | 25000000.00         
+Acme Industrial Holdings | 24000000.00         
+Mumbai InfraTech Ltd     | 22000000.00         
+Singapore Data Centers   | 22000000.00         
+Shanghai GreenChem Co    | 22000000.00         
+Osaka Precision K.K.     | 22000000.00         
+Amsterdam FinTech BV     | 18000000.00         
+Gaulois Pharma SA        | 18000000.00         
+Nordwind Logistics GmbH  | 18000000.00         
+Thyme Retail Group       | 18000000.00         
+Lagos Marine Services    | 12000000.00         
+Nairobi AgriFoods PLC    | 12000000.00         
+Cape Coast Minerals Ltd  | 12000000.00         
+Alexandria Textiles Co   | 12000000.00         
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 1501
+Completion tokens: 153
+Total tokens: 1654
+Estimated cost (USD): 0.005851  [input=0.004158, output=0.001694; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+
+========== EXECUTION TIME ==========
+Total elapsed time: 14.88s (14.881 seconds)
+

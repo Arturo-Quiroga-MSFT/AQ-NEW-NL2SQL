@@ -1,0 +1,248 @@
+================================================================================
+NL2SQL MULTI-MODEL RUN LOG
+================================================================================
+Timestamp: 2025-10-08T13:39:31.125629
+Implementation: Multi-Model Optimized (LangChain + Azure OpenAI)
+Intent Model: gpt-4o-mini
+SQL Model: gpt-4.1
+Formatting Model: gpt-4.1-mini
+Elapsed Time: 13.08s
+================================================================================
+
+USER QUESTION:
+For each company with loans, compute total principal amount; show the top 20 companies by total principal. show names too
+
+
+================================================================================
+INTENT & ENTITIES (extracted with gpt-4o-mini):
+================================================================================
+```json
+{
+  "intent": "calculate",
+  "entities": {
+    "table": "dbo.Loan",
+    "columns": [
+      "CompanyId",
+      "PrincipalAmount"
+    ],
+    "additional_columns": [
+      "CompanyName"
+    ]
+  },
+  "timeframe": null,
+  "aggregations": {
+    "group_by": "CompanyId",
+    "sum": "PrincipalAmount",
+    "order_by": "total_principal DESC",
+    "limit": 20
+  },
+  "filters": null
+}
+```
+
+================================================================================
+REASONING (generated with gpt-4.1):
+================================================================================
+Certainly! Here is my step-by-step reasoning for constructing the query based on your intent:
+
+---
+
+## 1. Tables and Relationships
+
+- **Primary table:** `dbo.Loan` — This table contains loan-level data, including `CompanyId` (which identifies the borrower) and `PrincipalAmount` (the loan size).
+- **Related table:** `dbo.Company` — This is required to retrieve the `CompanyName` for each `CompanyId`.
+- **Relationship:** The query will join `dbo.Loan.CompanyId = dbo.Company.CompanyId` to associate each loan with its company and company name.
+
+---
+
+## 2. Calculations or Aggregations Needed
+
+- **Sum aggregation:** For each company, we need to calculate the **total principal amount** across all their loans. This requires `SUM(PrincipalAmount)` grouped by `CompanyId`.
+- **Grouping:** The aggregation must be grouped by both `CompanyId` (as requested) and, for display, `CompanyName`.
+
+---
+
+## 3. Filtering or Sorting Logic
+
+- **Filtering:** There are no filters specified (e.g., on dates, status, or regions).
+- **Sorting:** The result should be ordered by the total principal amount in **descending** order, so the companies with the largest aggregate loan exposure appear first.
+- **Limiting:** The result set should be limited to the **top 20 companies**.
+
+---
+
+## 4. Why This Approach is Optimal
+
+- **Directness:** The base tables (`Loan` and `Company`) are used directly, which is efficient for basic aggregations and ensures all relevant columns are available.
+- **Simplicity:** Only a single join is required (to get company names), and the aggregation is straightforward.
+- **Efficient grouping:** By grouping at the company level and ordering by total principal, it answers the business question concisely.
+- **Scalability:** The logic will work even if companies have multiple loans, and distributing the grouping/aggregation ensures the correct sums.
+- **Relevance:** The columns selected and logic implemented are exactly aligned with the entities and aggregations specified in the user intent.
+
+---
+
+## Final Query Logic (for context):
+
+```sql
+SELECT
+    l.CompanyId,
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS total_principal
+FROM
+    dbo.Loan l
+INNER JOIN
+    dbo.Company c ON l.CompanyId = c.CompanyId
+GROUP BY
+    l.CompanyId, c.CompanyName
+ORDER BY
+    total_principal DESC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+```
+---
+
+**Summary:**  
+This approach is clear, direct, and efficient for summarizing total loan principal by company and reporting the top 20 results.
+
+================================================================================
+GENERATED SQL (with gpt-4.1):
+================================================================================
+SELECT
+    l.CompanyId,
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS total_principal
+FROM
+    dbo.Loan l
+    INNER JOIN dbo.Company c ON l.CompanyId = c.CompanyId
+GROUP BY
+    l.CompanyId,
+    c.CompanyName
+ORDER BY
+    total_principal DESC
+OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY;
+
+================================================================================
+QUERY RESULTS:
+================================================================================
+Row count: 15
+
+[
+  {
+    "CompanyId": 2,
+    "CompanyName": "Blue Ridge Energy Corp",
+    "total_principal": 25000000.0
+  },
+  {
+    "CompanyId": 14,
+    "CompanyName": "Toronto Health Devices",
+    "total_principal": 25000000.0
+  },
+  {
+    "CompanyId": 1,
+    "CompanyName": "Acme Industrial Holdings",
+    "total_principal": 24000000.0
+  },
+  {
+    "CompanyId": 15,
+    "CompanyName": "Singapore Data Centers",
+    "total_principal": 22000000.0
+  },
+  {
+    "CompanyId": 6,
+    "CompanyName": "Osaka Precision K.K.",
+    "total_principal": 22000000.0
+  },
+  {
+    "CompanyId": 7,
+    "CompanyName": "Shanghai GreenChem Co",
+    "total_principal": 22000000.0
+  },
+  {
+    "CompanyId": 8,
+    "CompanyName": "Mumbai InfraTech Ltd",
+    "total_principal": 22000000.0
+  },
+  {
+    "CompanyId": 3,
+    "CompanyName": "Nordwind Logistics GmbH",
+    "total_principal": 18000000.0
+  },
+  {
+    "CompanyId": 4,
+    "CompanyName": "Gaulois Pharma SA",
+    "total_principal": 18000000.0
+  },
+  {
+    "CompanyId": 5,
+    "CompanyName": "Thyme Retail Group",
+    "total_principal": 18000000.0
+  },
+  {
+    "CompanyId": 13,
+    "CompanyName": "Amsterdam FinTech BV",
+    "total_principal": 18000000.0
+  },
+  {
+    "CompanyId": 9,
+    "CompanyName": "Cape Coast Minerals Ltd",
+    "total_principal": 12000000.0
+  },
+  {
+    "CompanyId": 10,
+    "CompanyName": "Lagos Marine Services",
+    "total_principal": 12000000.0
+  },
+  {
+    "CompanyId": 11,
+    "CompanyName": "Nairobi AgriFoods PLC",
+    "total_principal": 12000000.0
+  },
+  {
+    "CompanyId": 12,
+    "CompanyName": "Alexandria Textiles Co",
+    "total_principal": 12000000.0
+  }
+]
+
+================================================================================
+AI SUMMARY (generated with gpt-4.1-mini):
+================================================================================
+Summary:
+The analysis identified the top 20 companies ranked by the total principal amount of their loans. The total principal amounts ranged from $12 million to $25 million among these companies.
+
+Key Insights:
+- The highest total principal amount loaned was $25 million, shared by two companies: Blue Ridge Energy Corp and Toronto Health Devices.
+- A cluster of companies, including Acme Industrial Holdings, Singapore Data Centers, Osaka Precision K.K., Shanghai GreenChem Co, and Mumbai InfraTech Ltd, each holds between $22 million and $24 million in total principal loans.
+- Several companies have total principals at $18 million and $12 million levels, indicating tiers in loan amounts among the top borrowers.
+- The companies come from diverse industries and regions, reflecting broad loan distribution.
+
+Notable Statistics:
+- Maximum total principal amount loaned: $25,000,000 (Blue Ridge Energy Corp and Toronto Health Devices).
+- Minimum total principal amount in the top 20: $12,000,000.
+- Multiple companies have identical total principal amounts, indicating possible similar borrowing scales or consolidated loan restructuring.
+
+Natural Language Answer:
+Among companies with loans, Blue Ridge Energy Corp and Toronto Health Devices stand out as the top borrowers, each with a total principal amount of $25 million. The top 20 companies have total principals ranging from $12 million up to $25 million, illustrating significant loan concentrations within this group. Other notable companies include Acme Industrial Holdings ($24 million) and several firms with around $22 million in loans, emphasizing their roles as major borrowers.
+
+================================================================================
+TOKEN USAGE & COST BREAKDOWN:
+================================================================================
+Total tokens: 6,111
+Total cost: $0.016422 USD
+
+Intent Extraction:
+  Input tokens: 1,320
+  Output tokens: 116
+  Total: 1,436
+
+SQL Generation:
+  Input tokens: 2,815
+  Output tokens: 648
+  Total: 3,463
+
+Result Formatting:
+  Input tokens: 899
+  Output tokens: 313
+  Total: 1,212
+
+================================================================================
+END OF RUN LOG
+================================================================================

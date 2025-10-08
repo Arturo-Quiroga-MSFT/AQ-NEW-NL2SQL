@@ -66,6 +66,18 @@ def _is_reasoning_like_model(deployment_name: str | None) -> bool:
     name = (deployment_name or "").lower()
     return name.startswith("o") or name.startswith("gpt-5")
 
+# Helper: detect models that require max_completion_tokens instead of max_tokens
+def _uses_completion_tokens(deployment_name: str | None) -> bool:
+    name = (deployment_name or "").lower()
+    return (
+        name.startswith('gpt-4o') or 
+        name.startswith('gpt-5') or 
+        name.startswith('gpt-4.1') or
+        name.startswith('o1') or 
+        name.startswith('o3') or
+        name.startswith('o4')
+    )
+
 
 _USING_REASONING_STYLE = _is_reasoning_like_model(DEPLOYMENT_NAME)
 
@@ -76,16 +88,31 @@ def _make_llm():
     For o-series/gpt‑5 deployments, we avoid LangChain defaults that may send unsupported
     parameters and instead use a direct HTTP call path. For non‑o-series, we use the
     AzureChatOpenAI LangChain wrapper with the configured api_version.
+    
+    Note: Newer models (gpt-4o, gpt-4.1, gpt-5, o-series) use max_completion_tokens instead of max_tokens
+    and require temperature=1 (default).
     """
     if _USING_REASONING_STYLE:
         return None  # We'll use direct Azure Chat Completions calls without temperature
-    return AzureChatOpenAI(
-        openai_api_key=API_KEY,
-        azure_endpoint=ENDPOINT,
-        deployment_name=DEPLOYMENT_NAME,
-        api_version=API_VERSION,
-        max_tokens=8192,
-    )
+    
+    # Determine which max tokens parameter to use
+    if _uses_completion_tokens(DEPLOYMENT_NAME):
+        return AzureChatOpenAI(
+            openai_api_key=API_KEY,
+            azure_endpoint=ENDPOINT,
+            deployment_name=DEPLOYMENT_NAME,
+            api_version=API_VERSION,
+            max_completion_tokens=8192,
+            temperature=1,  # Must be 1 (default) for new models
+        )
+    else:
+        return AzureChatOpenAI(
+            openai_api_key=API_KEY,
+            azure_endpoint=ENDPOINT,
+            deployment_name=DEPLOYMENT_NAME,
+            api_version=API_VERSION,
+            max_tokens=8192,
+        )
 
 
 llm = _make_llm()

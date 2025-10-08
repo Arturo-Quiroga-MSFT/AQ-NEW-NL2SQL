@@ -1,0 +1,200 @@
+================================================================================
+NL2SQL MULTI-MODEL RUN LOG
+================================================================================
+Timestamp: 2025-10-08T13:33:48.480772
+Implementation: Multi-Model Optimized (LangChain + Azure OpenAI)
+Intent Model: gpt-4o-mini
+SQL Model: gpt-5-mini
+Formatting Model: gpt-4.1-mini
+Elapsed Time: 28.50s
+================================================================================
+
+USER QUESTION:
+For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+
+================================================================================
+INTENT & ENTITIES (extracted with gpt-4o-mini):
+================================================================================
+```json
+{
+  "intent": "calculate",
+  "entities": {
+    "table": "Loan",
+    "columns": ["CompanyId", "PrincipalAmount"]
+  },
+  "timeframe": null,
+  "aggregations": {
+    "group_by": "CompanyId",
+    "total": "SUM(PrincipalAmount) AS TotalPrincipalAmount"
+  },
+  "filters": null
+}
+```
+
+================================================================================
+REASONING (generated with gpt-5-mini):
+================================================================================
+High-level plan / reasoning
+
+1. Tables and relationships
+- Primary table: dbo.Loan (contains CompanyId and PrincipalAmount).
+- Optional join: dbo.Company on Loan.CompanyId -> Company.CompanyId to return CompanyName (more readable output).
+- Note: if PrincipalAmount values are in different currencies, ref.Currency and ref.FXRateDaily would be required to normalize amounts — otherwise summing assumes a single currency.
+
+2. Calculations / aggregations needed
+- Aggregate: SUM(PrincipalAmount) grouped by CompanyId:
+  - SUM(PrincipalAmount) AS TotalPrincipalAmount
+- (Optional extras to improve usefulness)
+  - COUNT(*) AS LoanCount to show number of loans per company.
+  - MAX(OriginationDate) or MIN(...) if you want latest/earliest loan date per company.
+
+3. Filtering and sorting logic
+- Basic filters to ensure data quality:
+  - Exclude NULL PrincipalAmount (WHERE PrincipalAmount IS NOT NULL) so SUM is correct.
+  - Optionally exclude cancelled/terminated loans (e.g., WHERE Status NOT IN ('Cancelled','Withdrawn')) if business rule requires.
+  - Optionally restrict to active timeframe (OriginationDate or MaturityDate) if user meant a snapshot.
+- Sorting:
+  - ORDER BY TotalPrincipalAmount DESC to list largest exposures first.
+
+4. Currency considerations (important)
+- If PrincipalAmount uses multiple CurrencyCode values:
+  - Convert PrincipalAmount to a common currency using ref.FXRateDaily (join on RateDate/from/to) or a predefined conversion rate. That requires choosing an as-of date or doing a date-based conversion per loan.
+  - If conversion is not applied, document that totals are currency-mixed and may be misleading.
+
+5. Performance and correctness rationale
+- Simplicity: grouping directly on dbo.Loan is efficient for a straightforward per-company total because Loan is the normalized source of principal amounts.
+- Indexing: aggregating by CompanyId will be fast if Loan.CompanyId is indexed; selecting only CompanyId and PrincipalAmount minimizes I/O.
+- Alternative: using dbo.vw_LoanPortfolio is acceptable for simple portfolio queries because it is denormalized and already contains CompanyName and PrincipalAmount; use it if you prefer a ready-made, readable view and want to avoid a join.
+- Robustness: add filters for NULLs and statuses to avoid overstating exposure; handle currencies explicitly to ensure meaningful aggregates.
+
+6. Example result shape (conceptual)
+- CompanyId, CompanyName (optional), TotalPrincipalAmount, LoanCount (optional)
+
+Why this approach is optimal
+- It uses the canonical source of principal (dbo.Loan) for correctness, keeps the query minimal for performance, and explicitly calls out currency and data-quality issues that could invalidate the aggregated total. Joining to dbo.Company is optional for readability but not necessary for the numeric aggregation.
+
+================================================================================
+GENERATED SQL (with gpt-5-mini):
+================================================================================
+-- Sum of principal amounts grouped by company
+-- Returns one row per CompanyId with the total principal outstanding across its loans
+SELECT
+    L.CompanyId,
+    SUM(L.PrincipalAmount) AS TotalPrincipalAmount
+FROM dbo.Loan AS L
+GROUP BY L.CompanyId
+ORDER BY TotalPrincipalAmount DESC;
+
+================================================================================
+QUERY RESULTS:
+================================================================================
+Row count: 15
+
+[
+  {
+    "CompanyId": 2,
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyId": 14,
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyId": 1,
+    "TotalPrincipalAmount": 24000000.0
+  },
+  {
+    "CompanyId": 15,
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 6,
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 7,
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 8,
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 3,
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 4,
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 5,
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 13,
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 9,
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 10,
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 11,
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 12,
+    "TotalPrincipalAmount": 12000000.0
+  }
+]
+
+================================================================================
+AI SUMMARY (generated with gpt-4.1-mini):
+================================================================================
+Summary:
+The query calculated the total principal loan amounts for each company, ranking them from highest to lowest total principal. The results show the top 15 companies by their total outstanding principal.
+
+Key insights and patterns:
+- Two companies (Company 2 and Company 14) share the highest total principal amount at $25 million each.
+- Several companies have clustered totals, e.g., four companies with $22 million and five companies at $18 million.
+- There is a clear tiered distribution with major amounts around $25M, $22M, $18M, and $12M.
+- The top company totals differ by increments of about $2-3 million, indicating a spread but with groupings.
+
+Notable statistics:
+- Highest total principal: $25,000,000 (Companies 2 and 14)
+- Lowest among top 15: $12,000,000 (Companies 9, 10, 11, 12)
+- Mid-range totals: $18,000,000 and $22,000,000 clusters
+- Number of companies in top 15: 15, with several ties in amounts
+
+Natural language answer:
+Among companies with loans, Company 2 and Company 14 have the highest combined principal amounts at $25 million each. Several other companies, including Company 1, 15, 6, 7, and 8, also have significant loan principals ranging from $22 million to $24 million. The top 20 companies by total principal exhibit grouped loan totals with distinct clusters at $25M, $22M, $18M, and $12M.
+
+================================================================================
+TOKEN USAGE & COST BREAKDOWN:
+================================================================================
+Total tokens: 0
+Total cost: $0.000000 USD
+
+Intent Extraction:
+  Input tokens: 1,316
+  Output tokens: 85
+  Total: 1,401
+
+SQL Generation:
+  Input tokens: 2,751
+  Output tokens: 1,626
+  Total: 4,377
+
+Result Formatting:
+  Input tokens: 676
+  Output tokens: 330
+  Total: 1,006
+
+================================================================================
+END OF RUN LOG
+================================================================================

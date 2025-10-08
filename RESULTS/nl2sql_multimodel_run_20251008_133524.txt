@@ -1,0 +1,199 @@
+================================================================================
+NL2SQL MULTI-MODEL RUN LOG
+================================================================================
+Timestamp: 2025-10-08T13:35:24.887512
+Implementation: Multi-Model Optimized (LangChain + Azure OpenAI)
+Intent Model: gpt-4o-mini
+SQL Model: gpt-4.1
+Formatting Model: gpt-4.1-mini
+Elapsed Time: 12.03s
+================================================================================
+
+USER QUESTION:
+For each company with loans, compute total principal amount; show the top 20 companies with their names, by total principal.
+
+================================================================================
+INTENT & ENTITIES (extracted with gpt-4o-mini):
+================================================================================
+```json
+{
+  "intent": "calculate",
+  "entities": {
+    "table": "dbo.Loan",
+    "columns": ["CompanyName", "PrincipalAmount"]
+  },
+  "timeframe": null,
+  "aggregations": {
+    "group_by": "CompanyName",
+    "sum": "PrincipalAmount"
+  },
+  "filters": null
+}
+```
+
+================================================================================
+REASONING (generated with gpt-4.1):
+================================================================================
+Certainly! Here’s my step-by-step reasoning for how to approach this query, based on the user’s intent and the CONTOSO-FI database schema:
+
+---
+
+## 1. Tables and Relationships to Use
+
+- **Primary Table:** `dbo.Loan` is needed to access the `PrincipalAmount`.
+- **Related Table:** `dbo.Company` provides the `CompanyName` because `dbo.Loan` stores only the `CompanyId`.
+- **Relationship:** `dbo.Loan.CompanyId` links to `dbo.Company.CompanyId`. I need to join these two tables to associate each loan’s principal amount with the correct company name.
+
+---
+
+## 2. Required Calculations / Aggregations
+
+- **Aggregation:** The query must calculate the **sum of PrincipalAmount for each company**. This means, after joining, I should group by `CompanyName` and sum the linked `PrincipalAmount`.
+
+---
+
+## 3. Filtering or Sorting Logic
+
+- **Filters:** None are requested, so all loans and all companies are considered.
+- **Sorting:** Not specified by the user. If clarity or presentation is needed, I might sort by total principal amount (descending) or company name (ascending), but this is optional.
+
+---
+
+## 4. Why This Approach is Optimal
+
+- **Direct Mapping:** I use the base tables because the requirement is simple (sum by company), and I need fields (`CompanyName` from `dbo.Company` and `PrincipalAmount` from `dbo.Loan`) not available directly in a single table.
+- **Minimal Joins:** Only one necessary join is required (Loan → Company), making it efficient.
+- **Accurate Aggregation:** By grouping by `CompanyName`, I ensure the calculation is at the correct company granularity.
+- **Schema Compliance:** This method adheres to best practices, leveraging schema relationships and returning precisely what the user requested.
+
+---
+
+**Summary:**  
+I’ll join `dbo.Loan` to `dbo.Company` on `CompanyId`, group by `CompanyName`, then sum `PrincipalAmount` for each group. This provides the total loan amounts by company as requested, with minimal complexity and guaranteed accuracy.
+
+================================================================================
+GENERATED SQL (with gpt-4.1):
+================================================================================
+SELECT
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipalAmount
+FROM
+    dbo.Loan l
+    INNER JOIN dbo.Company c ON l.CompanyId = c.CompanyId
+GROUP BY
+    c.CompanyName
+ORDER BY
+    TotalPrincipalAmount DESC;
+
+================================================================================
+QUERY RESULTS:
+================================================================================
+Row count: 15
+
+[
+  {
+    "CompanyName": "Blue Ridge Energy Corp",
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyName": "Toronto Health Devices",
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyName": "Acme Industrial Holdings",
+    "TotalPrincipalAmount": 24000000.0
+  },
+  {
+    "CompanyName": "Mumbai InfraTech Ltd",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyName": "Osaka Precision K.K.",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyName": "Shanghai GreenChem Co",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyName": "Singapore Data Centers",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyName": "Thyme Retail Group",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyName": "Amsterdam FinTech BV",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyName": "Nordwind Logistics GmbH",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyName": "Gaulois Pharma SA",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyName": "Lagos Marine Services",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyName": "Nairobi AgriFoods PLC",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyName": "Alexandria Textiles Co",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyName": "Cape Coast Minerals Ltd",
+    "TotalPrincipalAmount": 12000000.0
+  }
+]
+
+================================================================================
+AI SUMMARY (generated with gpt-4.1-mini):
+================================================================================
+Summary:
+The analysis identified the top companies by the total principal amount of loans they hold. The data covers multiple companies with their aggregated loan principals, ordered from highest to lower amounts.
+
+Key Insights:
+- The highest total principal amount held by a company is $25 million, shared by two companies: Blue Ridge Energy Corp and Toronto Health Devices.
+- Several companies cluster around significant principal amounts, with a notable grouping at $22 million (four companies) and $18 million (four companies).
+- The total principal amounts vary from $12 million up to $25 million among the top 15 companies.
+- These figures suggest a moderate concentration of large loans among a select group, with several companies holding very similar principal totals.
+
+Notable Statistics:
+- Maximum total principal: $25,000,000 (Blue Ridge Energy Corp, Toronto Health Devices)
+- Minimum total principal (in top 15): $12,000,000 (Lagos Marine Services, Nairobi AgriFoods PLC, Alexandria Textiles Co, Cape Coast Minerals Ltd)
+- Several companies share identical total principal values, indicating equivalently sized loan portfolios.
+
+Answer:
+The top 20 companies with loans are led by Blue Ridge Energy Corp and Toronto Health Devices, each holding a total principal amount of $25 million. Other major borrowers include Acme Industrial Holdings with $24 million and multiple firms around the $22 million and $18 million marks. Overall, the largest total principal amounts per company range between $12 million and $25 million among the leading borrowers.
+
+================================================================================
+TOKEN USAGE & COST BREAKDOWN:
+================================================================================
+Total tokens: 0
+Total cost: $0.000000 USD
+
+Intent Extraction:
+  Input tokens: 1,320
+  Output tokens: 80
+  Total: 1,400
+
+SQL Generation:
+  Input tokens: 2,743
+  Output tokens: 503
+  Total: 3,246
+
+Result Formatting:
+  Input tokens: 720
+  Output tokens: 304
+  Total: 1,024
+
+================================================================================
+END OF RUN LOG
+================================================================================
