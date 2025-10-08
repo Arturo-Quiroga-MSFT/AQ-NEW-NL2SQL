@@ -1,0 +1,117 @@
+========== RUN CONFIGURATION ==========
+Timestamp: 2025-10-08 12:28:07
+Model/Deployment: gpt-5
+Azure OpenAI Endpoint: https://aq-ai-foundry-sweden-central.openai.azure.com/
+API Version: 2025-04-01-preview
+SQL Server: aqsqlserver001.database.windows.net
+Database: CONTOSO-FI
+Pipeline Options:
+  - Reasoning step: enabled
+  - SQL execution: enabled
+  - Explain-only mode: no
+
+========== NATURAL LANGUAGE QUERY ==========
+For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+
+========== INTENT & ENTITIES ==========
+{
+  "intent": "Aggregate total loan principal per company and return the top 20 companies ranked by that total.",
+  "entities": {
+    "domain_objects": ["Company", "Loan"],
+    "measures": [
+      {
+        "field": "principal_amount",
+        "aggregation": "SUM",
+        "alias": "total_principal"
+      }
+    ],
+    "dimensions": [
+      "company_id",
+      "company_name"
+    ],
+    "filters": [
+      {
+        "type": "exists",
+        "description": "Only include companies that have at least one loan.",
+        "on": "Loan"
+      }
+    ],
+    "group_by": ["company_id", "company_name"],
+    "order_by": [
+      {
+        "field": "total_principal",
+        "direction": "DESC"
+      }
+    ],
+    "limit": 20,
+    "joins": [
+      {
+        "from_table": "Loan",
+        "from_field": "company_id",
+        "to_table": "Company",
+        "to_field": "id",
+        "type": "inner"
+      }
+    ],
+    "output_fields": ["company_id", "company_name", "total_principal"]
+  }
+}
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: principal_amount -> Loan.PrincipalAmount; company_id -> Company.CompanyId; company_name -> Company.CompanyName.
+- Tables/Joins: Use base tables; INNER JOIN dbo.Loan to dbo.Company on Loan.CompanyId = Company.CompanyId (ensures companies have loans).
+- Aggregations: SUM(Loan.PrincipalAmount) as total_principal; GROUP BY Company.CompanyId, Company.CompanyName. Optionally COALESCE principal to 0 to avoid nulls.
+- Filters: No additional filters beyond the join (implicitly enforces “at least one loan”).
+- Order/Limit: ORDER BY total_principal DESC; return top 20 rows.
+- Assumptions: No FX conversion (totals are in native loan currencies); include all loans regardless of status/date; one row per loan in dbo.Loan (no duplicates). Using base tables rather than vw_LoanPortfolio to ensure company_id is available.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP (20)
+    c.CompanyId AS company_id,
+    c.CompanyName AS company_name,
+    SUM(l.PrincipalAmount) AS total_principal
+FROM dbo.Company AS c
+INNER JOIN dbo.Loan AS l
+    ON l.CompanyId = c.CompanyId
+GROUP BY c.CompanyId, c.CompanyName
+ORDER BY total_principal DESC
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP (20)
+    c.CompanyId AS company_id,
+    c.CompanyName AS company_name,
+    SUM(l.PrincipalAmount) AS total_principal
+FROM dbo.Company AS c
+INNER JOIN dbo.Loan AS l
+    ON l.CompanyId = c.CompanyId
+GROUP BY c.CompanyId, c.CompanyName
+ORDER BY total_principal DESC
+
+========== SQL QUERY RESULTS (TABLE) ==========
+company_id | company_name             | total_principal
+-----------+--------------------------+----------------
+2          | Blue Ridge Energy Corp   | 25000000.00    
+14         | Toronto Health Devices   | 25000000.00    
+1          | Acme Industrial Holdings | 24000000.00    
+15         | Singapore Data Centers   | 22000000.00    
+6          | Osaka Precision K.K.     | 22000000.00    
+7          | Shanghai GreenChem Co    | 22000000.00    
+8          | Mumbai InfraTech Ltd     | 22000000.00    
+3          | Nordwind Logistics GmbH  | 18000000.00    
+4          | Gaulois Pharma SA        | 18000000.00    
+5          | Thyme Retail Group       | 18000000.00    
+13         | Amsterdam FinTech BV     | 18000000.00    
+9          | Cape Coast Minerals Ltd  | 12000000.00    
+10         | Lagos Marine Services    | 12000000.00    
+11         | Nairobi AgriFoods PLC    | 12000000.00    
+12         | Alexandria Textiles Co   | 12000000.00    
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 3153
+Completion tokens: 2978
+Total tokens: 6131
+Estimated cost (USD): 0.033721  [input=0.003941, output=0.029780; per-1k: in=0.00125, out=0.01; source=file:azure_openai_pricing.json]
+
+========== EXECUTION TIME ==========
+Total elapsed time: 42.87s (42.866 seconds)
+

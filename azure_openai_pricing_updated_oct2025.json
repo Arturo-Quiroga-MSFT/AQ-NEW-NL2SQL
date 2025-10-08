@@ -1,0 +1,192 @@
+{
+  "_comment": "Azure OpenAI Pricing - Updated October 2025",
+  "_source": "https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/",
+  "_note": "Prices are per 1,000 tokens (input and output). Global deployment pricing shown.",
+  
+  "gpt-5": {
+    "USD": { 
+      "input_per_1k": 0.00125, 
+      "output_per_1k": 0.01,
+      "cached_input_per_1k": 0.000625
+    },
+    "CAD": { 
+      "input_per_1k": 0.001728875, 
+      "output_per_1k": 0.013831,
+      "cached_input_per_1k": 0.000864438
+    }
+  },
+  "gpt-5-mini": {
+    "USD": { 
+      "input_per_1k": 0.0003, 
+      "output_per_1k": 0.0012,
+      "cached_input_per_1k": 0.00015
+    },
+    "CAD": { 
+      "input_per_1k": 0.0004149, 
+      "output_per_1k": 0.0016596,
+      "cached_input_per_1k": 0.00020745
+    }
+  },
+  "gpt-5-nano": {
+    "USD": { 
+      "input_per_1k": 0.00015, 
+      "output_per_1k": 0.0006,
+      "cached_input_per_1k": 0.000075
+    },
+    "CAD": { 
+      "input_per_1k": 0.00020745, 
+      "output_per_1k": 0.0008298,
+      "cached_input_per_1k": 0.000103725
+    }
+  },
+  "gpt-4.1": {
+    "USD": { 
+      "input_per_1k": 0.00277, 
+      "output_per_1k": 0.01107,
+      "cached_input_per_1k": 0.001385
+    },
+    "CAD": { 
+      "input_per_1k": 0.003831187, 
+      "output_per_1k": 0.015310917,
+      "cached_input_per_1k": 0.001915594
+    }
+  },
+  "gpt-4.1-mini": {
+    "USD": { 
+      "input_per_1k": 0.00055, 
+      "output_per_1k": 0.0022,
+      "cached_input_per_1k": 0.000275
+    },
+    "CAD": { 
+      "input_per_1k": 0.0007607, 
+      "output_per_1k": 0.0030428,
+      "cached_input_per_1k": 0.00038035
+    }
+  },
+  "gpt-4.1-nano": {
+    "USD": { 
+      "input_per_1k": 0.00011, 
+      "output_per_1k": 0.00044,
+      "cached_input_per_1k": 0.000055
+    },
+    "CAD": { 
+      "input_per_1k": 0.00015214, 
+      "output_per_1k": 0.00060856,
+      "cached_input_per_1k": 0.00007607
+    }
+  },
+  "gpt-4o": {
+    "USD": { 
+      "input_per_1k": 0.0025, 
+      "output_per_1k": 0.01,
+      "cached_input_per_1k": 0.00125
+    },
+    "CAD": { 
+      "input_per_1k": 0.00345725, 
+      "output_per_1k": 0.013829,
+      "cached_input_per_1k": 0.001728625
+    }
+  },
+  "gpt-4o-mini": {
+    "USD": { 
+      "input_per_1k": 0.00015, 
+      "output_per_1k": 0.0006,
+      "cached_input_per_1k": 0.000075
+    },
+    "CAD": { 
+      "input_per_1k": 0.00020745, 
+      "output_per_1k": 0.0008298,
+      "cached_input_per_1k": 0.000103725
+    }
+  },
+  "o3": {
+    "USD": { 
+      "input_per_1k": 0.015, 
+      "output_per_1k": 0.06,
+      "cached_input_per_1k": 0.0075
+    },
+    "CAD": { 
+      "input_per_1k": 0.020745, 
+      "output_per_1k": 0.08298,
+      "cached_input_per_1k": 0.0103725
+    }
+  },
+  "o3-mini": {
+    "USD": { 
+      "input_per_1k": 0.0011, 
+      "output_per_1k": 0.0044,
+      "cached_input_per_1k": 0.00055
+    },
+    "CAD": { 
+      "input_per_1k": 0.0015214, 
+      "output_per_1k": 0.0060856,
+      "cached_input_per_1k": 0.0007607
+    }
+  },
+  "o4-mini": {
+    "USD": { 
+      "input_per_1k": 0.0011, 
+      "output_per_1k": 0.0044,
+      "cached_input_per_1k": 0.00055
+    },
+    "CAD": { 
+      "input_per_1k": 0.0015214, 
+      "output_per_1k": 0.0060856,
+      "cached_input_per_1k": 0.0007607
+    }
+  },
+  "o1": {
+    "USD": { 
+      "input_per_1k": 0.015, 
+      "output_per_1k": 0.06,
+      "cached_input_per_1k": 0.0075
+    },
+    "CAD": { 
+      "input_per_1k": 0.020745, 
+      "output_per_1k": 0.08298,
+      "cached_input_per_1k": 0.0103725
+    }
+  },
+  "o1-mini": {
+    "USD": { 
+      "input_per_1k": 0.003, 
+      "output_per_1k": 0.012,
+      "cached_input_per_1k": 0.0015
+    },
+    "CAD": { 
+      "input_per_1k": 0.004149, 
+      "output_per_1k": 0.016596,
+      "cached_input_per_1k": 0.0020745
+    }
+  },
+  "gpt-4-turbo": {
+    "USD": { 
+      "input_per_1k": 0.01, 
+      "output_per_1k": 0.03
+    },
+    "CAD": { 
+      "input_per_1k": 0.013829, 
+      "output_per_1k": 0.041487
+    }
+  },
+  "gpt-4": {
+    "USD": { 
+      "input_per_1k": 0.03, 
+      "output_per_1k": 0.06
+    },
+    "CAD": { 
+      "input_per_1k": 0.041487, 
+      "output_per_1k": 0.082974
+    }
+  },
+  "gpt-35-turbo": {
+    "USD": { 
+      "input_per_1k": 0.0005, 
+      "output_per_1k": 0.0015
+    },
+    "CAD": { 
+      "input_per_1k": 0.0006914, 
+      "output_per_1k": 0.0020743
+    }
+  }
+}

@@ -1,19 +1,18 @@
 
-"""Streamlit UI for the Contoso-FI NL2SQL Demo.
+"""Streamlit UI for the Contoso-FI NL2SQL Demo using Azure AI Agent Service.
 
 High-level flow when the user presses Run:
  1. Reset token counters.
- 2. Parse the natural language question into structured intent/entities.
- 3. (Optional) Generate a reasoning / high-level plan explanation.
- 4. Generate raw SQL from the intent.
+ 2. Extract intent and entities from natural language using Azure AI Agent.
+ 3. (Optional) Generate a reasoning / high-level plan explanation (if needed).
+ 4. Generate raw SQL from the intent using Azure AI Agent.
  5. Sanitize / extract runnable SQL (adds warnings or modifications if needed).
  6. (Optional) Execute SQL against Azure SQL and display tabular results.
  7. Display token usage + estimated cost (based on pricing map).
  8. Persist a detailed run log (mirrors CLI log format) locally and optionally upload
     to Azure Blob Storage for durable retrieval / sharing.
 
-This file purposefully keeps orchestration logic inline for clarity; most heavy
-LLM logic lives in `nl2sql_main.py` and supporting modules.
+This file uses the Azure AI Agent Service pipeline from nl2sql_standalone_AzureAI.
 """
 
 import os
@@ -45,41 +44,24 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_FILE)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# Add nl2sql_standalone_Langchain to path for module imports
-LANGCHAIN_DIR = os.path.join(ROOT, "nl2sql_standalone_Langchain")
-if LANGCHAIN_DIR not in sys.path:
-    sys.path.insert(0, LANGCHAIN_DIR)
+# Add nl2sql_standalone_AzureAI to path for module imports
+AZUREAI_DIR = os.path.join(ROOT, "nl2sql_standalone_AzureAI")
+if AZUREAI_DIR not in sys.path:
+    sys.path.insert(0, AZUREAI_DIR)
 
 load_dotenv()
 
-# Import pipeline helpers using importlib to handle the '1_' prefix
-import importlib.util
-nl2sql_main_path = os.path.join(LANGCHAIN_DIR, "1_nl2sql_main.py")
-if not os.path.exists(nl2sql_main_path):
-    raise FileNotFoundError(
-        f"Could not find nl2sql_main module at: {nl2sql_main_path}\n"
-        f"Current file: {CURRENT_FILE}\n"
-        f"ROOT: {ROOT}\n"
-        f"LANGCHAIN_DIR: {LANGCHAIN_DIR}"
-    )
-    
-spec = importlib.util.spec_from_file_location(
-    "nl2sql_main",
-    nl2sql_main_path
+# Import pipeline helpers from Azure AI implementation
+from nl2sql_main import (
+    extract_intent,              # Natural language → structured intent/entities using AI Agent
+    generate_sql,                # Intent/entities → candidate SQL using AI Agent
+    extract_and_sanitize_sql,    # Cleans / warns / final SQL to execute
+    _TOKEN_USAGE,                # Shared mutable token usage accumulator
+    _get_pricing_for_deployment, # Lookup per-1K token pricing for current model
+    MODEL_DEPLOYMENT_NAME,       # Active Azure AI model deployment name
+    PROJECT_ENDPOINT,            # Azure AI Foundry project endpoint
+    _format_table,               # Utility for fixed-width text table formatting
 )
-nl2sql_main = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nl2sql_main)
-
-# Extract the needed functions and variables
-parse_nl_query = nl2sql_main.parse_nl_query
-generate_reasoning = nl2sql_main.generate_reasoning
-generate_sql = nl2sql_main.generate_sql
-extract_and_sanitize_sql = nl2sql_main.extract_and_sanitize_sql
-_TOKEN_USAGE = nl2sql_main._TOKEN_USAGE
-_get_pricing_for_deployment = nl2sql_main._get_pricing_for_deployment
-DEPLOYMENT_NAME = nl2sql_main.DEPLOYMENT_NAME
-_format_table = nl2sql_main._format_table
-
 from schema_reader import refresh_schema_cache, get_sql_database_schema_context
 from sql_executor import execute_sql_query
 
@@ -87,8 +69,8 @@ from sql_executor import execute_sql_query
 # Streamlit Page Configuration
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="NL2SQL Demo",
-    page_icon="🧠",
+    page_title="NL2SQL Demo (Azure AI Agents)",
+    page_icon="🤖",
     layout="wide",
 )
 
@@ -128,15 +110,6 @@ def _load_examples() -> List[str]:
             "For each loan, compute the remaining balance and show the top 10 by balance.",
             "By region, list the top 10 companies by total outstanding loan amount.",
             "Show all companies with more than 3 active loans.",
-            "List all collateral items valued above 1,000,000.",
-            "For each customer profile, show the average loan interest rate.",
-            "Show the total number of loans and total principal by risk category.",
-            "List the 5 most common loan purposes and their total amounts.",
-            "For each region, show the average loan-to-value ratio.",
-            "Find all loans with overdue payments and their associated companies.",
-            "Show the distribution of loan amounts by currency.",
-            "List all companies in the Americas region with loans above 5,000,000.",
-            "For each company, list the most recent loan and its amount.",
             "Show all loans with fixed interest rates above 7%.",
             "List the top 10 customers by total collateral value.",
             "For each region, show the number of loans and the sum of principal amounts.",
@@ -151,22 +124,23 @@ EXAMPLE_QUESTIONS: List[str] = _load_examples()
 # -----------------------------------------------------------------------------
 with st.sidebar:
     st.title("NL2SQL Demo UI")
-    st.caption("Natural Language → Intent → Reasoning → SQL → Results")
+    st.caption("**Azure AI Agent Service** Implementation")
+    st.caption("Natural Language → Intent (AI Agent) → SQL (AI Agent) → Results")
+    
     # Environment status
     with st.expander("Environment status", expanded=False):
-        api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        dep = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        project_endpoint = os.getenv("PROJECT_ENDPOINT")
+        model_deployment = os.getenv("MODEL_DEPLOYMENT_NAME")
         sql_server = os.getenv("AZURE_SQL_SERVER")
         sql_db = os.getenv("AZURE_SQL_DB")
         sql_user = os.getenv("AZURE_SQL_USER")
         sql_pwd = os.getenv("AZURE_SQL_PASSWORD")
         def ok(v: Any) -> str:
             return "✅" if v else "⚠️"
-        st.write(f"Azure OpenAI Key {ok(api_key)}")
-        st.write(f"Azure OpenAI Endpoint {ok(endpoint)}")
-        st.write(f"Deployment {ok(dep)}")
+        st.write(f"Azure AI Project Endpoint {ok(project_endpoint)}")
+        st.write(f"Model Deployment {ok(model_deployment)}")
         st.write(f"SQL Server {ok(sql_server)} | DB {ok(sql_db)} | User {ok(sql_user)} | Password {ok(sql_pwd)}")
+    
     # Manual schema cache refresh (forces re-reading DB metadata / cached file)
     if st.button("🔁 Refresh schema cache"):
         try:
@@ -174,6 +148,7 @@ with st.sidebar:
             st.success(f"Schema cache refreshed: {path}")
         except Exception as e:
             st.error(f"Failed to refresh schema cache: {e}")
+    
     with st.expander("Current schema context (preview)", expanded=False):
         ctx = get_sql_database_schema_context(ttl_seconds=0)
         st.code(ctx[:4000], language="text")
@@ -183,11 +158,12 @@ with st.sidebar:
 # Main page header & descriptive blurb
 # -----------------------------------------------------------------------------
 st.markdown("""
-<h1 style='text-align: left;'>Contoso-FI Natural Language to SQL Analytics</h1>
+<h1 style='text-align: left;'>🤖 Contoso-FI NL2SQL with Azure AI Agents</h1>
 <p style='font-size:1.1em;'>
-<b>Ask questions in plain English and get instant, explainable SQL and results from the Contoso-FI financial dataset.</b><br>
-This app lets you explore a realistic banking/loans database using natural language. It generates SQL, explains its reasoning, and runs the query live against Azure SQL.<br><br>
-<b>About the data:</b> The <b>Contoso-FI</b> dataset models a mid-size financial institution, with tables for loans, companies, collateral, covenants, payments, risk, and more. You can ask about loan portfolios, top companies, regional breakdowns, risk metrics, and other financial insights.
+<b>Ask questions in plain English and get instant, explainable SQL and results powered by Azure AI Agent Service.</b><br>
+This app lets you explore a realistic banking/loans database using natural language. It uses <b>Azure AI Agents</b> to generate SQL, explain its reasoning, and run queries live against Azure SQL.<br><br>
+<b>About the data:</b> The <b>Contoso-FI</b> dataset models a mid-size financial institution, with tables for loans, companies, collateral, covenants, payments, risk, and more. You can ask about loan portfolios, top companies, regional breakdowns, risk metrics, and other financial insights.<br><br>
+<b>🆚 Difference:</b> This version uses <b>Azure AI Foundry Agent Service</b> instead of LangChain for better Azure integration and agent management.
 </p>
 """, unsafe_allow_html=True)
 
@@ -214,18 +190,15 @@ query = st.text_area(
 # Control toggles:
 #  - Run: Execute full pipeline
 #  - Skip exec: Stop after SQL generation
-#  - Explain-only: Intent + reasoning (no SQL)
-#  - No reasoning: Skip reasoning step (faster)
+#  - No reasoning: Skip reasoning step (faster) - Note: Azure AI version doesn't have separate reasoning step
 # -----------------------------------------------------------------------------
-controls_cols = st.columns([6, 2, 2, 2, 2])
+controls_cols = st.columns([6, 2, 2, 2])
 with controls_cols[1]:
     run_clicked = st.button("Run", type="primary")
 with controls_cols[2]:
     no_exec = st.toggle("⏭️ Skip exec", value=False, help="Generate SQL but do not run it", key="skip_exec_toggle")
 with controls_cols[3]:
-    explain_only = st.toggle("📝 Explain-only", value=False, help="Show intent and reasoning only; skip SQL generation and execution", key="explain_only_toggle")
-with controls_cols[4]:
-    no_reasoning = st.toggle("🧠 No reasoning", value=False, help="Skip the reasoning/plan step", key="no_reasoning_toggle")
+    explain_only = st.toggle("📝 Explain-only", value=False, help="Show intent only; skip SQL generation and execution", key="explain_only_toggle")
 
 if run_clicked:
     # -------------------------------------------------------------------------
@@ -233,6 +206,33 @@ if run_clicked:
     # -------------------------------------------------------------------------
     # Start timer for elapsed time tracking
     start_time = time.time()
+    
+    # Display run configuration context
+    st.markdown("---")
+    with st.expander("⚙️ Run Configuration", expanded=False):
+        config_cols = st.columns(2)
+        with config_cols[0]:
+            st.markdown("**Azure AI Agent Service Settings:**")
+            st.write(f"🤖 **Model/Deployment:** `{MODEL_DEPLOYMENT_NAME or 'Not configured'}`")
+            endpoint_display = PROJECT_ENDPOINT or "Not set"
+            # Show just the hostname for cleaner display
+            if endpoint_display.startswith("http"):
+                from urllib.parse import urlparse
+                endpoint_display = urlparse(endpoint_display).netloc
+            st.write(f"🌐 **Project Endpoint:** `{endpoint_display}`")
+            st.write(f"🏗️ **Service:** Azure AI Foundry Agent Service")
+        
+        with config_cols[1]:
+            st.markdown("**Database Settings:**")
+            sql_server = os.getenv("AZURE_SQL_SERVER", "Not set")
+            sql_db = os.getenv("AZURE_SQL_DB", "Not set")
+            st.write(f"🗄️ **SQL Server:** `{sql_server}`")
+            st.write(f"📊 **Database:** `{sql_db}`")
+            st.markdown("**Pipeline Options:**")
+            st.write(f"{'✅' if not no_exec else '❌'} SQL execution enabled")
+            st.write(f"{'✅' if explain_only else '❌'} Explain-only mode")
+    
+    st.markdown("---")
     
     # Reset token usage counters for a new run. (Shared dict mutated by
     # lower-level functions called during LLM interactions.)
@@ -246,45 +246,40 @@ if run_clicked:
         st.warning("Please enter a question.")
         st.stop()
 
-    # ---- Step 1: NL parsing / intent extraction
-    with st.spinner("Extracting intent and entities..."):
-        intent_entities = parse_nl_query(query)
+    # ---- Step 1: NL parsing / intent extraction using Azure AI Agent
+    with st.spinner("Extracting intent and entities using Azure AI Agent..."):
+        intent_entities = extract_intent(query)
 
     st.markdown("### Intent & Entities")
     st.write(intent_entities)
 
-    reasoning = None
-    # ---- Step 2: Optional reasoning (skip if user disabled)
-    if not no_reasoning or explain_only:
-        with st.spinner("Generating reasoning plan..."):
-            reasoning = generate_reasoning(intent_entities)
-        with st.expander("Reasoning (high-level plan)", expanded=True):
-            st.write(reasoning)
+    # Note: Azure AI version doesn't have separate reasoning step in this implementation
+    # The agent itself handles reasoning internally
 
-    # ---- Step 3: Raw SQL generation
+    # ---- Step 2: Raw SQL generation using Azure AI Agent
     if not explain_only:
-        with st.spinner("Generating SQL..."):
+        with st.spinner("Generating SQL using Azure AI Agent..."):
             raw_sql = generate_sql(intent_entities)
 
     if not explain_only:
         st.markdown("### Generated SQL (raw)")
         st.code(raw_sql, language="sql")
 
-    # ---- Step 4: SQL sanitization / extraction (adds warnings, ensures safety)
+    # ---- Step 3: SQL sanitization / extraction (adds warnings, ensures safety)
     if not explain_only:
         sanitized_sql = extract_and_sanitize_sql(raw_sql)
         if sanitized_sql != raw_sql:
             st.markdown("### Sanitized SQL (for execution)")
             st.code(sanitized_sql, language="sql")
 
-    # ---- Step 5: Execute final SQL if not skipped
+    # ---- Step 4: Execute final SQL if not skipped
     if not explain_only and not no_exec:
         with st.spinner("Executing SQL against Azure SQL Database..."):
             try:
                 rows: List[Dict[str, Any]] = execute_sql_query(sanitized_sql)
                 if rows:
                     st.markdown("### Results")
-                    st.dataframe(rows, width='stretch')
+                    st.dataframe(rows, use_container_width=True)
                     result_rows = rows
                     # Export buttons
                     exp_cols = st.columns([1,1,1,6])
@@ -326,10 +321,10 @@ if run_clicked:
     else:
         st.info("Execution skipped.")
 
-    # ---- Step 6: Token usage + estimated cost panel
+    # ---- Step 5: Token usage + estimated cost panel
     # Use the _TOKEN_USAGE already imported at the top
     TOK = _TOKEN_USAGE
-    in_price_1k, out_price_1k, src, currency = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    in_price_1k, out_price_1k, src, currency = _get_pricing_for_deployment(MODEL_DEPLOYMENT_NAME)
     prompt_t = TOK["prompt"]
     completion_t = TOK["completion"]
     total_t = TOK["total"] or (prompt_t + completion_t)
@@ -365,24 +360,36 @@ if run_clicked:
         else:
             st.info("Pricing not configured. See repo README for configuration options.")
 
-    # ---- Step 7: Persist run artifact (human-readable log + optional JSON rows)
+    # ---- Step 6: Persist run artifact (human-readable log + optional JSON rows)
     # Mirrors CLI logging format: sections separated by banners.
     safe_query = query.strip().replace(" ", "_")[:40]
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_filename = f"nl2sql_run_{safe_query}_{ts}.txt"
+    out_filename = f"nl2sql_azureai_run_{safe_query}_{ts}.txt"
     results_dir = os.path.join(ROOT, "RESULTS")
     os.makedirs(results_dir, exist_ok=True)
-    run_summary = [
+    
+    # Prepare run configuration section for log
+    run_config_section = [
+        "========== RUN CONFIGURATION ==========\n",
+        f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+        f"Implementation: Azure AI Foundry Agent Service\n",
+        f"Model/Deployment: {MODEL_DEPLOYMENT_NAME or 'Not configured'}\n",
+        f"Project Endpoint: {PROJECT_ENDPOINT or 'Not set'}\n",
+        f"SQL Server: {os.getenv('AZURE_SQL_SERVER', 'Not set')}\n",
+        f"Database: {os.getenv('AZURE_SQL_DB', 'Not set')}\n",
+        f"Pipeline Options:\n",
+        f"  - SQL execution: {'enabled' if not no_exec else 'disabled'}\n",
+        f"  - Explain-only mode: {'yes' if explain_only else 'no'}\n",
+        "\n",
+    ]
+    
+    run_summary = run_config_section + [
         "========== NATURAL LANGUAGE QUERY ==========\n",
         query + "\n\n",
-        "========== INTENT & ENTITIES ==========\n",
+        "========== INTENT & ENTITIES (AI AGENT) ==========\n",
         intent_entities + "\n\n",
     ]
-    if reasoning is not None:
-        run_summary += [
-            "========== SQL GENERATION REASONING ==========\n",
-            reasoning + "\n\n",
-        ]
+    
     if not explain_only:
         run_summary += [
             "========== GENERATED SQL (RAW) ==========\n",
@@ -403,8 +410,9 @@ if run_clicked:
                 "========== SQL QUERY ERROR ==========\n",
                 exec_error + "\n\n",
             ]
+    
     # Token usage & cost (append to log similar to CLI)
-    in_price_1k_log, out_price_1k_log, src_log, currency_log = _get_pricing_for_deployment(DEPLOYMENT_NAME)
+    in_price_1k_log, out_price_1k_log, src_log, currency_log = _get_pricing_for_deployment(MODEL_DEPLOYMENT_NAME)
     prompt_t_log = TOK["prompt"]
     completion_t_log = TOK["completion"]
     total_t_log = TOK["total"] or (prompt_t_log + completion_t_log)

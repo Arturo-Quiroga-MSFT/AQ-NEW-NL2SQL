@@ -1,0 +1,77 @@
+[
+  {
+    "CompanyId": 2,
+    "CompanyName": "Blue Ridge Energy Corp",
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyId": 14,
+    "CompanyName": "Toronto Health Devices",
+    "TotalPrincipalAmount": 25000000.0
+  },
+  {
+    "CompanyId": 1,
+    "CompanyName": "Acme Industrial Holdings",
+    "TotalPrincipalAmount": 24000000.0
+  },
+  {
+    "CompanyId": 15,
+    "CompanyName": "Singapore Data Centers",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 6,
+    "CompanyName": "Osaka Precision K.K.",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 7,
+    "CompanyName": "Shanghai GreenChem Co",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 8,
+    "CompanyName": "Mumbai InfraTech Ltd",
+    "TotalPrincipalAmount": 22000000.0
+  },
+  {
+    "CompanyId": 3,
+    "CompanyName": "Nordwind Logistics GmbH",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 4,
+    "CompanyName": "Gaulois Pharma SA",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 5,
+    "CompanyName": "Thyme Retail Group",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 13,
+    "CompanyName": "Amsterdam FinTech BV",
+    "TotalPrincipalAmount": 18000000.0
+  },
+  {
+    "CompanyId": 9,
+    "CompanyName": "Cape Coast Minerals Ltd",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 10,
+    "CompanyName": "Lagos Marine Services",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 11,
+    "CompanyName": "Nairobi AgriFoods PLC",
+    "TotalPrincipalAmount": 12000000.0
+  },
+  {
+    "CompanyId": 12,
+    "CompanyName": "Alexandria Textiles Co",
+    "TotalPrincipalAmount": 12000000.0
+  }
+]
