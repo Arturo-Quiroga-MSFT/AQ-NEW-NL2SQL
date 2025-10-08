@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "projectName": {
+      "value": "nl2sql"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "imageName": {
+      "value": "nl2sql-multimodel"
+    },
+    "imageTag": {
+      "value": "latest"
+    },
+    "azureOpenAiApiKey": {
+      "value": "YOUR_AZURE_OPENAI_API_KEY"
+    },
+    "azureOpenAiEndpoint": {
+      "value": "https://your-endpoint.openai.azure.com/"
+    },
+    "azureOpenAiApiVersion": {
+      "value": "2025-04-01-preview"
+    },
+    "azureSqlServer": {
+      "value": "your-server.database.windows.net"
+    },
+    "azureSqlDatabase": {
+      "value": "your-database"
+    },
+    "azureSqlUser": {
+      "value": "your-username"
+    },
+    "azureSqlPassword": {
+      "value": "YOUR_SQL_PASSWORD"
+    },
+    "minReplicas": {
+      "value": 1
+    },
+    "maxReplicas": {
+      "value": 3
+    },
+    "cpuCores": {
+      "value": "1.0"
+    },
+    "memorySize": {
+      "value": "2.0Gi"
+    }
+  }
+}

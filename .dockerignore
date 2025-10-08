@@ -1,43 +1,176 @@
-# Ignore Python caches
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.sqlite3
+# ============================================================================
+# .dockerignore - Optimize Docker build context for Azure Container Apps
+# ============================================================================
+# This file excludes unnecessary files from the Docker build context,
+# reducing build time and final image size.
+#
+# The Dockerfile builds from the project root, so this file should be
+# in the root directory.
+# ============================================================================
 
-# Virtual environments
-venv/
-.env
-.env.*
-
-# Git
-.git
+# ============================================================================
+# Git and Version Control
+# ============================================================================
+.git/
 .gitignore
+.gitattributes
+.github/
 
-# Local results / backups / artifacts
-BACKUPS/
-RESULTS/
-agents_nl2sql/results/
-*.log
-.diagrams-cache
+# ============================================================================
+# Python Cache and Build Artifacts
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Credentials / secrets (do NOT bake into image)
-credentials.json
+# ============================================================================
+# Virtual Environments (not needed in container)
+# ============================================================================
+.venv/
+venv/
+env/
+ENV/
+virtualenv/
 
-# Large / non-runtime content
-docs/
-MSSQL_Extension_for_vscode/
-star_schema_poc/
-DATABASE_SETUP/migrations/
-DATABASE_SETUP/schema_cache.json
-NL2SQL_Demo.ipynb
-
-# Node / frontend leftovers
-node_modules/
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# VSCode / IDE
+# ============================================================================
+# IDE and Editor Files
+# ============================================================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# ============================================================================
+# Documentation (not needed at runtime)
+# ============================================================================
+*.md
+!README.md
+docs/
+*.docx
+*.txt
+LICENSE
+*.pdf
+
+# ============================================================================
+# Deployment and Infrastructure (not needed in container)
+# ============================================================================
+azure_deployment/
+!azure_deployment/Dockerfile.multimodel
+.env
+.env.*
+!.env.template
+*.sh
+!azure_deployment/deploy.sh
+
+# ============================================================================
+# Test Files (not needed in production)
+# ============================================================================
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ============================================================================
+# Backup and Temporary Files
+# ============================================================================
+BACKUPS/
+backup/
+*.bak
+*.backup
+temp/
+tmp/
+*.tmp
+*.temp
+
+# ============================================================================
+# Results and Logs (generated at runtime)
+# ============================================================================
+RESULTS/
+results/
+*.log
+*.log.*
+logs/
+
+# ============================================================================
+# Jupyter Notebooks (not needed for Streamlit app)
+# ============================================================================
+*.ipynb
+.ipynb_checkpoints/
+jupyter_notebook_config.py
+
+# ============================================================================
+# Database and Data Files (should be external)
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+data/
+*.csv
+*.xlsx
+*.json
+!azure_openai_pricing.json
+!requirements.txt
+!package.json
+
+# ============================================================================
+# Media Files (usually not needed in container)
+# ============================================================================
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+diagrams/
+
+# ============================================================================
+# Azure and Cloud-Specific Files
+# ============================================================================
+.azure/
+azure-pipelines.yml
+*.bicep
+*.parameters.json
+
+# ============================================================================
+# Other Project Directories Not Needed in Container
+# ============================================================================
+star_schema_poc/
+tools/
+scripts/
+MSSQL_Extension_for_vscode/
+
+# ============================================================================
+# Keep These Important Files
+# ============================================================================
+# These are explicitly NOT ignored (overrides above patterns)
+!requirements.txt
+!credentials.json
+!schema_reader.py
+!sql_executor.py
+!nl2sql_main.py
+
+# ============================================================================
+# Security - Never include these
+# ============================================================================
+*.key
+*.pem
+*.cert
+secrets/
+.secrets/
