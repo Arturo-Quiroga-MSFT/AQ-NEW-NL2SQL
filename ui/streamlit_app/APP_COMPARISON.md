@@ -5,7 +5,7 @@
 | Your Priority | Recommended App |
 |---------------|-----------------|
 | 💰 **Minimize costs** | `app_multimodel.py` (60-83% savings) |
-| 🚀 **Quick setup & testing** | `app.py` (simple, single model) |
+| 🚀 **Quick setup & testing** | `app_langchain.py` (simple, single model) |
 | 🏢 **Production on Azure** | `app_azureai.py` (managed identity, persistent agents) |
 | 📊 **High query volume** | `app_multimodel.py` (cost scales well) |
 | 🧪 **Experimentation** | `app_multimodel.py` (flexible model selection) |
@@ -15,7 +15,7 @@
 
 ### Architecture & Models
 
-| Feature | app.py<br>(LangChain) | app_azureai.py<br>(Azure AI) | app_multimodel.py<br>(Multi-Model) |
+| Feature | app_langchain.py<br>(LangChain) | app_azureai.py<br>(Azure AI) | app_multimodel.py<br>(Multi-Model) |
 |---------|----------------------|------------------------------|----------------------------------|
 | **Implementation** | LangChain + Azure OpenAI | Azure AI Foundry | LangChain + Multi-Model |
 | **Authentication** | API Key | Managed Identity | API Key |
@@ -31,13 +31,13 @@
 
 | App | Cost/Query | Daily (1K) | Monthly (30K) | Annual (365K) | Savings |
 |-----|-----------|-----------|---------------|---------------|---------|
-| `app.py` (gpt-4.1 only) | $0.042 | $42 | $1,260 | $15,330 | Baseline |
+| `app_langchain.py` (gpt-4.1 only) | $0.042 | $42 | $1,260 | $15,330 | Baseline |
 | `app_multimodel.py` (gpt-4.1) | $0.024 | $24 | $720 | $8,760 | **43% ($6,570)** |
 | `app_multimodel.py` (gpt-5-mini) | $0.007 | $7 | $210 | $2,555 | **83% ($12,775)** |
 
 ### Features & Capabilities
 
-| Feature | app.py | app_azureai.py | app_multimodel.py |
+| Feature | app_langchain.py | app_azureai.py | app_multimodel.py |
 |---------|--------|----------------|-------------------|
 | **Example Questions** | ✅ 12 buttons | ✅ 12 buttons | ✅ 12 buttons |
 | **Intent Extraction** | ✅ Yes | ✅ Built-in | ✅ Optimized (gpt-4o-mini) |
@@ -57,7 +57,7 @@
 
 ### User Experience
 
-| Aspect | app.py | app_azureai.py | app_multimodel.py |
+| Aspect | app_langchain.py | app_azureai.py | app_multimodel.py |
 |--------|--------|----------------|-------------------|
 | **Setup Complexity** | 🟢 Simple | 🟡 Medium | 🟢 Simple |
 | **Learning Curve** | 🟢 Easy | 🟡 Medium | 🟢 Easy |
@@ -68,7 +68,7 @@
 
 ### Development & Operations
 
-| Aspect | app.py | app_azureai.py | app_multimodel.py |
+| Aspect | app_langchain.py | app_azureai.py | app_multimodel.py |
 |--------|--------|----------------|-------------------|
 | **Dev Setup** | 5 minutes | 15 minutes | 5 minutes |
 | **Deployment** | Easy | Medium | Easy |
@@ -83,7 +83,7 @@
 
 | App | Monthly Cost | Annual Cost |
 |-----|-------------|-------------|
-| `app.py` (gpt-4.1) | $126 | $1,512 |
+| `app_lagchain.py` (gpt-4.1) | $126 | $1,512 |
 | `app_multimodel.py` (gpt-4.1) | $72 | $864 |
 | `app_multimodel.py` (gpt-5-mini) | $21 | $252 |
 
@@ -93,7 +93,7 @@
 
 | App | Monthly Cost | Annual Cost |
 |-----|-------------|-------------|
-| `app.py` (gpt-4.1) | $1,260 | $15,120 |
+| `app_langchain.py` (gpt-4.1) | $1,260 | $15,120 |
 | `app_multimodel.py` (gpt-4.1) | $720 | $8,640 |
 | `app_multimodel.py` (gpt-5-mini) | $210 | $2,520 |
 
@@ -103,7 +103,7 @@
 
 | App | Monthly Cost | Annual Cost |
 |-----|-------------|-------------|
-| `app.py` (gpt-4.1) | $12,600 | $151,200 |
+| `app_langchain.py` (gpt-4.1) | $12,600 | $151,200 |
 | `app_multimodel.py` (gpt-4.1) | $7,200 | $86,400 |
 | `app_multimodel.py` (gpt-5-mini) | $2,100 | $25,200 |
 
@@ -111,7 +111,7 @@
 
 ## 🎯 Use Case Recommendations
 
-### Use `app.py` (LangChain) for:
+### Use `app_langchain.py` (LangChain) for:
 
 ✅ **Quick prototyping**
 - You want to test NL2SQL quickly
@@ -191,7 +191,7 @@
 
 ## 🚀 Migration Path
 
-### From `app.py` to `app_multimodel.py`
+### From `app_lagchain.py` to `app_multimodel.py`
 
 **Effort**: Minimal (just run different file)  
 **Risk**: None (no code changes needed)  
@@ -213,7 +213,7 @@ Steps:
 
 ## 🎓 Learning Path
 
-### Beginner → Start with `app.py`
+### Beginner → Start with `app_langchain.py`
 - Simple, one model
 - Learn NL2SQL basics
 - Understand the flow
@@ -266,7 +266,7 @@ Steps:
 - ✅ No downsides vs single model
 
 **When to use alternatives:**
-- `app.py`: Learning/testing only, very low volume
+- `app_langchain.py`: Learning/testing only, very low volume
 - `app_azureai.py`: Enterprise production with Azure-first strategy
 
 ---
