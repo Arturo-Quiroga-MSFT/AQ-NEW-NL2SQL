@@ -1,0 +1,89 @@
+========== NATURAL LANGUAGE QUERY ==========
+Count of loans by status per country (join Loan → Company → Country).
+
+========== INTENT & ENTITIES ==========
+**Intent:**  
+Get the count of loans grouped by their status and country, using joins from Loan to Company to Country.
+
+**Entities:**  
+- **Loan**: Table containing loan records.
+- **status**: Attribute/column in Loan representing the loan status.
+- **Company**: Table related to Loan.
+- **Country**: Table related to Company.
+- **Join path**: Loan → Company → Country.  
+
+**Action:**  
+Aggregate (count) loans by status and country, requiring joins from Loan to Company to Country.
+
+========== SQL GENERATION REASONING ==========
+- **Entities Mapping:**  
+  - Loans: dbo.Loan  
+  - Status: dbo.Loan.Status  
+  - Company/Country: dbo.Company, ref.Country
+
+- **Tables/Joins:**  
+  - Start from dbo.Loan  
+  - Join dbo.Company on CompanyId  
+  - Join ref.Country on Company.CountryCode
+
+- **Aggregations:**  
+  - Count of loans  
+  - Group by Loan.Status and Country.CountryName
+
+- **Filters:**  
+  - No specific filters required unless only active/valid loans are needed (assume all loans unless stated).
+
+- **Order/Limit:**  
+  - No specific ordering or limit required unless specified.
+
+- **Assumptions:**  
+  - All status values in Loan.Status are relevant.  
+  - Country grouping is by CountryName from ref.Country.  
+  - Only direct relationships are used; no subregions/regions unless requested.
+
+========== GENERATED SQL (RAW) ==========
+SELECT
+    l.Status,
+    ctry.CountryName,
+    COUNT(*) AS LoanCount
+FROM dbo.Loan l
+INNER JOIN dbo.Company comp ON l.CompanyId = comp.CompanyId
+INNER JOIN ref.Country ctry ON comp.CountryCode = ctry.CountryCode
+GROUP BY l.Status, ctry.CountryName
+ORDER BY ctry.CountryName, l.Status
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT
+    l.Status,
+    ctry.CountryName,
+    COUNT(*) AS LoanCount
+FROM dbo.Loan l
+INNER JOIN dbo.Company comp ON l.CompanyId = comp.CompanyId
+INNER JOIN ref.Country ctry ON comp.CountryCode = ctry.CountryCode
+GROUP BY l.Status, ctry.CountryName
+ORDER BY ctry.CountryName, l.Status
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Status | CountryName    | LoanCount
+-------+----------------+----------
+Active | Canada         | 1        
+Active | China          | 1        
+Active | Egypt          | 1        
+Active | France         | 1        
+Active | Germany        | 1        
+Active | India          | 1        
+Active | Japan          | 1        
+Active | Kenya          | 1        
+Active | Netherlands    | 1        
+Active | Nigeria        | 1        
+Active | Singapore      | 1        
+Active | South Africa   | 1        
+Active | United Kingdom | 1        
+Active | United States  | 3        
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 2873
+Completion tokens: 373
+Total tokens: 3246
+Estimated cost (USD): 0.012087  [input=0.007958, output=0.004129; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+

@@ -1,0 +1,70 @@
+========== NATURAL LANGUAGE QUERY ==========
+Show 20 covenants with covenant type, threshold, frequency, and status.
+
+========== INTENT & ENTITIES ==========
+**Intent:**  
+Retrieve a list of covenants with specific attributes, limited to 20 results.
+
+**Entities:**  
+- Entity: covenants  
+- Attributes: covenant type, threshold, frequency, status  
+- Limit: 20
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: The query focuses on covenants and their attributes—covenant type, threshold, frequency, and status.
+- Tables/Joins: Use the dbo.Covenant table directly, as all required attributes are present in this table; no joins are needed for these fields.
+- Aggregations: No aggregation required.
+- Filters: No explicit filters unless further specified; select all covenants.
+- Order/Limit: Apply a LIMIT of 20 results; optionally, order by CovenantId or another relevant field if needed for consistency.
+- Assumptions: Assumes no additional filtering criteria (e.g., on status or type); returns any 20 covenants with their specified attributes.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP 20
+    CovenantId,
+    CovenantType,
+    Threshold,
+    Frequency,
+    Status
+FROM dbo.Covenant
+ORDER BY CovenantId
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP 20
+    CovenantId,
+    CovenantType,
+    Threshold,
+    Frequency,
+    Status
+FROM dbo.Covenant
+ORDER BY CovenantId
+
+========== SQL QUERY RESULTS (TABLE) ==========
+CovenantId | CovenantType | Threshold | Frequency  | Status  
+-----------+--------------+-----------+------------+---------
+1          | DSCR_Min     | 1.2000    | Quarterly  | Met     
+2          | DSCR_Min     | 1.2000    | Semiannual | Met     
+3          | DSCR_Min     | 1.2000    | Quarterly  | Met     
+4          | DSCR_Min     | 1.2000    | Semiannual | Met     
+5          | DSCR_Min     | 1.2000    | Quarterly  | Met     
+6          | DSCR_Min     | 1.2000    | Quarterly  | Met     
+7          | DSCR_Min     | 1.2000    | Semiannual | Met     
+8          | DSCR_Min     | 1.2000    | Semiannual | Met     
+9          | DSCR_Min     | 1.2000    | Semiannual | Breached
+10         | DSCR_Min     | 1.2000    | Semiannual | Met     
+11         | DSCR_Min     | 1.2000    | Quarterly  | Met     
+12         | DSCR_Min     | 1.2000    | Semiannual | Met     
+13         | DSCR_Min     | 1.2000    | Quarterly  | Waived  
+14         | DSCR_Min     | 1.2000    | Quarterly  | Met     
+15         | DSCR_Min     | 1.2000    | Semiannual | Met     
+16         | Leverage_Max | 3.5000    | Annual     | Met     
+17         | Leverage_Max | 3.5000    | Annual     | Met     
+18         | Leverage_Max | 3.5000    | Annual     | Breached
+19         | Leverage_Max | 3.5000    | Annual     | Met     
+20         | Leverage_Max | 3.5000    | Annual     | Met     
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 2750
+Completion tokens: 223
+Total tokens: 2973
+Estimated cost (USD): 0.010086  [input=0.007617, output=0.002469; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+

@@ -1,0 +1,71 @@
+========== NATURAL LANGUAGE QUERY ==========
+List 20 collateral items with type, value, valuation date, and the related LoanNumber.
+
+========== INTENT & ENTITIES ==========
+**Intent:**  
+Retrieve a list of collateral items with specific details.
+
+**Entities:**  
+- **Number of items:** 20  
+- **Attributes requested:** type, value, valuation date, related LoanNumber  
+- **Entity:** collateral items  
+- **Relationship:** Each collateral item is related to a LoanNumber
+
+========== SQL GENERATION REASONING ==========
+- **Entities Mapping:** Collateral items (from dbo.Collateral) linked to their respective loans (dbo.Loan) via LoanId, showing type, value, valuation date, and LoanNumber.
+- **Tables/Joins:** Join dbo.Collateral with dbo.Loan on LoanId to access LoanNumber for each collateral entry.
+- **Aggregations:** No aggregation required; return individual collateral items.
+- **Filters:** None specified, but only 20 results are requested.
+- **Order/Limit:** Apply LIMIT (TOP 20) to restrict the output to 20 items; order is not specified, so default ordering will be used.
+- **Assumptions:** CollateralType maps to "type"; ValueAmount to "value"; ValuationDate to "valuation date"; all collateral items are eligible unless further filtering is required.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP 20
+    c.CollateralType AS [Type],
+    c.ValueAmount AS [Value],
+    c.ValuationDate,
+    l.LoanNumber
+FROM dbo.Collateral c
+INNER JOIN dbo.Loan l ON c.LoanId = l.LoanId
+ORDER BY c.ValuationDate DESC
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP 20
+    c.CollateralType AS [Type],
+    c.ValueAmount AS [Value],
+    c.ValuationDate,
+    l.LoanNumber
+FROM dbo.Collateral c
+INNER JOIN dbo.Loan l ON c.LoanId = l.LoanId
+ORDER BY c.ValuationDate DESC
+
+========== SQL QUERY RESULTS (TABLE) ==========
+Type        | Value       | ValuationDate | LoanNumber
+------------+-------------+---------------+-----------
+Receivables | 13000000.00 | 2025-02-27    | TEST-00001
+Receivables | 32500000.00 | 2025-02-27    | US-00001  
+Receivables | 8000000.00  | 2025-02-27    | US-00002  
+Equipment   | 15000000.00 | 2025-02-27    | EU-00001  
+Equipment   | 18000000.00 | 2025-02-27    | EU-00002  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00003  
+Equipment   | 23400000.00 | 2025-02-27    | EU-00004  
+Securities  | 25300000.00 | 2025-02-27    | AS-00001  
+Securities  | 25300000.00 | 2025-02-27    | AS-00002  
+Securities  | 25300000.00 | 2025-02-27    | AS-00003  
+Securities  | 25300000.00 | 2025-02-27    | AS-00004  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00001  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00002  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00003  
+RealEstate  | 13800000.00 | 2025-02-27    | AF-00004  
+Guarantee   | 2000000.00  | 2025-02-27    | US-00002  
+Guarantee   | 9000000.00  | 2025-02-27    | EU-00003  
+Guarantee   | 11000000.00 | 2025-02-27    | AS-00002  
+Guarantee   | 6000000.00  | 2025-02-27    | AF-00001  
+Guarantee   | 6000000.00  | 2025-02-27    | AF-00004  
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 2785
+Completion tokens: 299
+Total tokens: 3084
+Estimated cost (USD): 0.011024  [input=0.007714, output=0.003310; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+

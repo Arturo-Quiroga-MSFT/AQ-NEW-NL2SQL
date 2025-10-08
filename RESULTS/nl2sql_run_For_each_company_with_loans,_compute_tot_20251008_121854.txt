@@ -1,0 +1,80 @@
+========== NATURAL LANGUAGE QUERY ==========
+For each company with loans, compute total principal amount; show the top 20 companies by total principal.
+
+========== INTENT & ENTITIES ==========
+**Intent:**  
+Compute and display the top 20 companies with the highest total principal amount of their loans.
+
+**Entities:**  
+- Entity: company  
+- Entity: loan  
+- Attribute: principal amount  
+- Action: compute total principal per company  
+- Filter: companies with loans  
+- Sort: by total principal amount (descending)  
+- Limit: top 20 companies
+
+========== SQL GENERATION REASONING ==========
+- Entities mapping: Company is mapped to dbo.Company; Loan is mapped to dbo.Loan; principal amount is dbo.Loan.PrincipalAmount.
+- Tables/Joins: Join dbo.Company and dbo.Loan on CompanyId to link companies to their loans.
+- Aggregations: Sum PrincipalAmount per company to compute each company’s total principal.
+- Filters: Only include companies that have at least one associated loan.
+- Order/Limit: Sort results by total principal amount in descending order; limit output to top 20 companies.
+- Assumptions: Only active loans are considered unless otherwise specified; company identity is based on dbo.Company.CompanyId.
+
+========== GENERATED SQL (RAW) ==========
+SELECT TOP 20
+    c.CompanyId,
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipalAmount
+FROM
+    dbo.Loan l
+    INNER JOIN dbo.Company c ON l.CompanyId = c.CompanyId
+GROUP BY
+    c.CompanyId,
+    c.CompanyName
+ORDER BY
+    TotalPrincipalAmount DESC
+
+========== SANITIZED SQL (FOR EXECUTION) ==========
+SELECT TOP 20
+    c.CompanyId,
+    c.CompanyName,
+    SUM(l.PrincipalAmount) AS TotalPrincipalAmount
+FROM
+    dbo.Loan l
+    INNER JOIN dbo.Company c ON l.CompanyId = c.CompanyId
+GROUP BY
+    c.CompanyId,
+    c.CompanyName
+ORDER BY
+    TotalPrincipalAmount DESC
+
+========== SQL QUERY RESULTS (TABLE) ==========
+CompanyId | CompanyName              | TotalPrincipalAmount
+----------+--------------------------+---------------------
+2         | Blue Ridge Energy Corp   | 25000000.00         
+14        | Toronto Health Devices   | 25000000.00         
+1         | Acme Industrial Holdings | 24000000.00         
+15        | Singapore Data Centers   | 22000000.00         
+6         | Osaka Precision K.K.     | 22000000.00         
+7         | Shanghai GreenChem Co    | 22000000.00         
+8         | Mumbai InfraTech Ltd     | 22000000.00         
+3         | Nordwind Logistics GmbH  | 18000000.00         
+4         | Gaulois Pharma SA        | 18000000.00         
+5         | Thyme Retail Group       | 18000000.00         
+13        | Amsterdam FinTech BV     | 18000000.00         
+9         | Cape Coast Minerals Ltd  | 12000000.00         
+10        | Lagos Marine Services    | 12000000.00         
+11        | Nairobi AgriFoods PLC    | 12000000.00         
+12        | Alexandria Textiles Co   | 12000000.00         
+
+========== TOKEN USAGE & COST ==========
+Input tokens: 2813
+Completion tokens: 280
+Total tokens: 3093
+Estimated cost (USD): 0.010892  [input=0.007792, output=0.003100; per-1k: in=0.00277, out=0.01107; source=file:azure_openai_pricing.json]
+
+========== EXECUTION TIME ==========
+Total elapsed time: 5.52s (5.520 seconds)
+

@@ -19,6 +19,7 @@ LLM logic lives in `nl2sql_main.py` and supporting modules.
 import os
 import sys
 import json
+import time
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -38,23 +39,47 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # Ensure repository root is on sys.path so we can import project modules directly
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+# Get the absolute path of this file first
+CURRENT_FILE = os.path.abspath(__file__)
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_FILE)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+# Add nl2sql_standalone_Langchain to path for module imports
+LANGCHAIN_DIR = os.path.join(ROOT, "nl2sql_standalone_Langchain")
+if LANGCHAIN_DIR not in sys.path:
+    sys.path.insert(0, LANGCHAIN_DIR)
+
 load_dotenv()
 
-# Import pipeline helpers from root modules
-from nl2sql_main import (
-    parse_nl_query,             # Natural language → structured intent/entities
-    generate_reasoning,          # Optional reasoning plan (explainability)
-    generate_sql,                # Intent/entities → candidate SQL (raw)
-    extract_and_sanitize_sql,    # Cleans / warns / final SQL to execute
-    _TOKEN_USAGE,                # Shared mutable token usage accumulator
-    _get_pricing_for_deployment, # Lookup per-1K token pricing for current model
-    DEPLOYMENT_NAME,             # Active Azure OpenAI deployment name
-    _format_table,               # Utility for fixed-width text table formatting
+# Import pipeline helpers using importlib to handle the '1_' prefix
+import importlib.util
+nl2sql_main_path = os.path.join(LANGCHAIN_DIR, "1_nl2sql_main.py")
+if not os.path.exists(nl2sql_main_path):
+    raise FileNotFoundError(
+        f"Could not find nl2sql_main module at: {nl2sql_main_path}\n"
+        f"Current file: {CURRENT_FILE}\n"
+        f"ROOT: {ROOT}\n"
+        f"LANGCHAIN_DIR: {LANGCHAIN_DIR}"
+    )
+    
+spec = importlib.util.spec_from_file_location(
+    "nl2sql_main",
+    nl2sql_main_path
 )
+nl2sql_main = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(nl2sql_main)
+
+# Extract the needed functions and variables
+parse_nl_query = nl2sql_main.parse_nl_query
+generate_reasoning = nl2sql_main.generate_reasoning
+generate_sql = nl2sql_main.generate_sql
+extract_and_sanitize_sql = nl2sql_main.extract_and_sanitize_sql
+_TOKEN_USAGE = nl2sql_main._TOKEN_USAGE
+_get_pricing_for_deployment = nl2sql_main._get_pricing_for_deployment
+DEPLOYMENT_NAME = nl2sql_main.DEPLOYMENT_NAME
+_format_table = nl2sql_main._format_table
+
 from schema_reader import refresh_schema_cache, get_sql_database_schema_context
 from sql_executor import execute_sql_query
 
@@ -206,6 +231,9 @@ if run_clicked:
     # -------------------------------------------------------------------------
     # PIPELINE ORCHESTRATION
     # -------------------------------------------------------------------------
+    # Start timer for elapsed time tracking
+    start_time = time.time()
+    
     # Reset token usage counters for a new run. (Shared dict mutated by
     # lower-level functions called during LLM interactions.)
     _TOKEN_USAGE["prompt"] = 0
@@ -299,11 +327,25 @@ if run_clicked:
         st.info("Execution skipped.")
 
     # ---- Step 6: Token usage + estimated cost panel
-    from nl2sql_main import _TOKEN_USAGE as TOK
+    # Use the _TOKEN_USAGE already imported at the top
+    TOK = _TOKEN_USAGE
     in_price_1k, out_price_1k, src, currency = _get_pricing_for_deployment(DEPLOYMENT_NAME)
     prompt_t = TOK["prompt"]
     completion_t = TOK["completion"]
     total_t = TOK["total"] or (prompt_t + completion_t)
+    
+    # Calculate elapsed time
+    end_time = time.time()
+    elapsed_seconds = end_time - start_time
+    elapsed_str = f"{elapsed_seconds:.2f}s"
+    if elapsed_seconds >= 60:
+        minutes = int(elapsed_seconds // 60)
+        seconds = elapsed_seconds % 60
+        elapsed_str = f"{minutes}m {seconds:.2f}s"
+    
+    # Display elapsed time prominently
+    st.markdown(f"### ⏱️ Total Elapsed Time: **{elapsed_str}**")
+    
     with st.expander("Token usage & estimated cost", expanded=False):
         st.write({
             "prompt_tokens": prompt_t,
@@ -388,6 +430,13 @@ if run_clicked:
             f"Total tokens: {total_t_log}\n",
             "[INFO] Pricing not configured. See README for env vars or azure_openai_pricing.json.\n\n",
         ]
+    
+    # Add elapsed time to run summary
+    run_summary += [
+        "========== EXECUTION TIME ==========\n",
+        f"Total elapsed time: {elapsed_str} ({elapsed_seconds:.3f} seconds)\n\n",
+    ]
+    
     blob_url = None          # Public URL (if uploaded successfully)
     blob_error = None        # Capture upload exception message for user feedback
     # NOTE: Adjust these defaults if deploying to a different storage account
@@ -404,6 +453,7 @@ if run_clicked:
         sidecar_msg = ""
         if result_rows is not None:
             import datetime as _dt
+            from decimal import Decimal
             def _json_safe(obj):
                 if isinstance(obj, (list, tuple)):
                     return [_json_safe(x) for x in obj]
@@ -411,6 +461,8 @@ if run_clicked:
                     return {k: _json_safe(v) for k, v in obj.items()}
                 if isinstance(obj, (_dt.date, _dt.datetime)):
                     return obj.isoformat()
+                if isinstance(obj, Decimal):
+                    return float(obj)
                 return obj
             json_name = out_filename.replace(".txt", ".json")
             json_path = os.path.join(results_dir, json_name)
