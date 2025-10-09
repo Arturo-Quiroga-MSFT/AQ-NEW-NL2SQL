@@ -76,3 +76,5 @@ answers.txt
 update-repo-without-triggeringCICD.sh
 
 temp/
+
+azure_deployment/infra/main.parameters.tmp.json
