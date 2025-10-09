@@ -885,8 +885,6 @@ if run_clicked:
         logf.write("END OF RUN LOG\n")
         logf.write("=" * 80 + "\n")
 
-    st.success(f"✅ Run log saved: `{log_filename}`")
-    
     # ---- Also save as Markdown with timing breakdown
     log_filename_md = f"nl2sql_multimodel_v2_run_{timestamp}.md"
     log_path_md = os.path.join(ROOT, "RESULTS", log_filename_md)
@@ -982,7 +980,68 @@ if run_clicked:
         mdf.write("\n---\n\n")
         mdf.write("*End of run log*\n")
     
-    st.success(f"✅ Markdown log saved: `{log_filename_md}`")
+    # ---- Download buttons for log files
+    st.markdown("### 📥 Download Run Logs")
+    log_cols = st.columns([1, 1, 1, 5])
+    
+    with log_cols[0]:
+        # Download text log
+        with open(log_path, "rb") as f:
+            txt_data = f.read()
+        st.download_button(
+            label="📄 Download .txt",
+            data=txt_data,
+            file_name=log_filename,
+            mime="text/plain",
+            help="Download complete run log in text format"
+        )
+    
+    with log_cols[1]:
+        # Download markdown log
+        with open(log_path_md, "rb") as f:
+            md_data = f.read()
+        st.download_button(
+            label="📝 Download .md",
+            data=md_data,
+            file_name=log_filename_md,
+            mime="text/markdown",
+            help="Download run log in markdown format (better formatting)"
+        )
+    
+    with log_cols[2]:
+        # Download JSON summary
+        json_summary = {
+            "timestamp": datetime.now().isoformat(),
+            "implementation": "Multi-Model Optimized V2",
+            "models": {
+                "intent": INTENT_MODEL,
+                "sql": sql_model_choice,
+                "formatting": FORMATTING_MODEL
+            },
+            "query": query,
+            "elapsed_time_seconds": elapsed_seconds,
+            "token_usage": {
+                "intent": _TOKEN_USAGE_BY_MODEL["intent"],
+                "sql": _TOKEN_USAGE_BY_MODEL["sql"],
+                "formatting": _TOKEN_USAGE_BY_MODEL["formatting"],
+                "total": total_tokens
+            },
+            "cost": {
+                "total_usd": total_cost,
+                "currency": currency
+            },
+            "result_count": len(result_rows) if result_rows else 0
+        }
+        json_data = json.dumps(json_summary, indent=2).encode("utf-8")
+        st.download_button(
+            label="📊 Download .json",
+            data=json_data,
+            file_name=f"nl2sql_multimodel_v2_run_{timestamp}.json",
+            mime="application/json",
+            help="Download run summary in JSON format (for analysis)"
+        )
+    
+    st.caption(f"💾 Logs saved locally: `{log_filename}` and `{log_filename_md}`")
     
     # Optional blob upload
     if _HAS_BLOB:
