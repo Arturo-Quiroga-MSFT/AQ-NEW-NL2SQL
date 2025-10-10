@@ -1,378 +1,378 @@
 {
   "tables": {
-    "dbo.Collateral": [
-      "CollateralId",
-      "LoanId",
+    "dim.DimApplicationStatus": [
+      "StatusKey",
+      "StatusCode",
+      "StatusName",
+      "StatusCategory",
+      "IsActive",
+      "IsTerminal",
+      "SortOrder",
+      "CreatedDate"
+    ],
+    "dim.DimCollateralType": [
+      "CollateralTypeKey",
+      "CollateralTypeId",
+      "CollateralCategory",
       "CollateralType",
-      "Description",
-      "Jurisdiction",
-      "ValueAmount",
-      "CurrencyCode",
-      "ValuationDate",
-      "Status"
+      "CollateralDescription",
+      "TypicalLTV",
+      "RequiresAppraisal",
+      "AppraisalFrequencyMonths",
+      "CreatedDate"
     ],
-    "dbo.Company": [
-      "CompanyId",
+    "dim.DimCovenantType": [
+      "CovenantTypeKey",
+      "CovenantCategory",
+      "CovenantName",
+      "CovenantDescription",
+      "TestFrequency",
+      "ThresholdType",
+      "DefaultSeverity",
+      "CreatedDate"
+    ],
+    "dim.DimCustomer": [
+      "CustomerKey",
+      "CustomerId",
       "CompanyName",
-      "CountryCode",
-      "Industry",
-      "CreditRating",
-      "FoundedYear",
-      "EmployeeCount"
-    ],
-    "dbo.CompanyAddress": [
-      "AddressId",
-      "CompanyId",
-      "AddressType",
-      "Line1",
-      "City",
-      "StateProvince",
-      "PostalCode",
-      "CountryCode",
-      "Latitude",
-      "Longitude",
-      "EffectiveDate"
-    ],
-    "dbo.Covenant": [
-      "CovenantId",
-      "LoanId",
-      "CovenantType",
-      "Operator",
-      "Threshold",
-      "Frequency",
-      "LastTestDate",
-      "Status",
-      "Notes"
-    ],
-    "dbo.CovenantSchedule": [
-      "CovenantScheduleId",
-      "CovenantId",
-      "TestDueDate",
-      "RequiredOperator",
-      "RequiredThreshold",
-      "NotificationDays"
-    ],
-    "dbo.CovenantTestResult": [
-      "TestResultId",
-      "CovenantId",
-      "LoanId",
-      "TestDate",
-      "Status",
-      "ObservedValue",
-      "Notes"
-    ],
-    "dbo.CustomerProfile": [
-      "CustomerProfileId",
-      "CompanyId",
-      "LegalName",
       "TaxId",
-      "ParentCompanyId",
-      "OwnershipType",
-      "ESGScore",
-      "AnnualRevenueUSD",
-      "Headcount",
-      "Website",
-      "IncorporationDate",
-      "CreditOfficer",
-      "RiskAppetite"
+      "LegalEntityType",
+      "YearFounded",
+      "EmployeeCount",
+      "AnnualRevenue",
+      "PrimaryIndustryId",
+      "PrimarySICCode",
+      "PrimaryNAICSCode",
+      "CreditRating_SP",
+      "CreditRating_Moody",
+      "CreditRating_Fitch",
+      "InternalRiskRating",
+      "RelationshipManagerId",
+      "CustomerSegment",
+      "CustomerTier",
+      "TotalLoansCount",
+      "TotalLoanVolume",
+      "LifetimeRevenue",
+      "DefaultCount",
+      "IsActive",
+      "IsHighRisk",
+      "IsVIP",
+      "EffectiveDate",
+      "EndDate",
+      "IsCurrent",
+      "CreatedDate",
+      "ModifiedDate"
     ],
-    "dbo.db_assistant_migrations": [
-      "hash",
-      "file_name",
-      "applied_utc"
+    "dim.DimDate": [
+      "DateKey",
+      "Date",
+      "Year",
+      "Quarter",
+      "Month",
+      "MonthName",
+      "Week",
+      "DayOfYear",
+      "DayOfMonth",
+      "DayOfWeek",
+      "DayName",
+      "IsWeekend",
+      "IsHoliday",
+      "HolidayName",
+      "IsQuarterEnd",
+      "IsYearEnd",
+      "IsMonthEnd",
+      "FiscalYear",
+      "FiscalQuarter",
+      "FiscalMonth",
+      "PriorDay",
+      "PriorWeek",
+      "PriorMonth",
+      "PriorQuarter",
+      "PriorYear",
+      "CreatedDate"
     ],
-    "dbo.dim_company": [
-      "company_key",
-      "company_id",
-      "region",
-      "industry"
+    "dim.DimDelinquencyStatus": [
+      "DelinquencyStatusKey",
+      "StatusCode",
+      "StatusName",
+      "MinDaysDelinquent",
+      "MaxDaysDelinquent",
+      "IsPerforming",
+      "IsNonPerforming",
+      "RequiresRestructuring",
+      "CreatedDate"
     ],
-    "dbo.dim_date": [
-      "date_key",
-      "calendar_date"
+    "dim.DimIndustry": [
+      "IndustryKey",
+      "IndustryId",
+      "IndustrySector",
+      "IndustryGroup",
+      "IndustryName",
+      "SICCode",
+      "NAICSCode",
+      "RiskProfile",
+      "DefaultRate_Historical",
+      "RecoveryRate_Historical",
+      "IsRegulated",
+      "IsVolatile",
+      "CreatedDate"
     ],
-    "dbo.fact_loan_payments": [
-      "loan_id",
-      "principal_paid",
-      "interest_paid",
-      "company_key",
-      "date_key"
+    "dim.DimInteractionChannel": [
+      "ChannelKey",
+      "ChannelCode",
+      "ChannelName",
+      "IsFaceToFace",
+      "CreatedDate"
     ],
-    "dbo.Loan": [
-      "LoanId",
-      "CompanyId",
-      "LoanNumber",
-      "OriginationDate",
-      "MaturityDate",
-      "PrincipalAmount",
-      "CurrencyCode",
-      "InterestRatePct",
-      "InterestRateType",
-      "ReferenceRate",
-      "SpreadBps",
-      "AmortizationType",
-      "PaymentFreqMonths",
-      "Purpose",
-      "Status",
-      "ReferenceRateCode"
+    "dim.DimInteractionType": [
+      "InteractionTypeKey",
+      "TypeCode",
+      "TypeName",
+      "Category",
+      "CreatedDate"
     ],
-    "dbo.LoanDelinquencyFeaturesSnapshot": [
-      "loan_id",
-      "company_id",
-      "snapshot_date",
-      "loan_age_days",
-      "days_to_maturity",
-      "principal_amount",
-      "interest_rate_pct",
-      "payment_freq_months",
-      "spread_bps",
-      "scheduled_principal_due_next_30d",
-      "scheduled_total_due_next_30d",
-      "past_due_amount_total",
-      "past_due_amount_30d",
-      "missed_payments_30d_count",
-      "dpd_max",
-      "pct_schedule_paid_90d",
-      "payments_last_30d_amount",
-      "payments_last_90d_amount",
-      "payment_events_last_30d_count",
-      "avg_payment_amount_90d",
-      "last_payment_days_ago",
-      "covenant_breach_count_180d",
-      "last_breach_days_ago",
-      "collateral_latest_value",
-      "collateral_coverage_ratio",
-      "esg_score",
-      "delinquent_30d"
+    "dim.DimLoanProduct": [
+      "ProductKey",
+      "ProductId",
+      "ProductName",
+      "ProductCategory",
+      "ProductType",
+      "ProductDescription",
+      "MinAmount",
+      "MaxAmount",
+      "MinTerm",
+      "MaxTerm",
+      "BaseRateType",
+      "ReferenceRateType",
+      "MarginBps",
+      "RequiresCollateral",
+      "RequiresPersonalGuarantee",
+      "AllowsPrepayment",
+      "PrepaymentPenaltyPercent",
+      "IsActive",
+      "CreatedDate",
+      "ModifiedDate"
     ],
-    "dbo.PaymentEvent": [
-      "PaymentEventId",
-      "LoanId",
-      "EventDate",
-      "EventType",
-      "Amount",
-      "CurrencyCode",
+    "dim.DimLoanPurpose": [
+      "PurposeKey",
+      "PurposeId",
+      "PurposeCategory",
+      "PurposeName",
+      "PurposeDescription",
+      "RiskWeight",
+      "CreatedDate"
+    ],
+    "dim.DimPaymentMethod": [
+      "PaymentMethodKey",
+      "MethodCode",
+      "MethodName",
+      "MethodDescription",
+      "ProcessingFee",
+      "ProcessingDays",
+      "IsElectronic",
+      "CreatedDate"
+    ],
+    "dim.DimPaymentType": [
+      "PaymentTypeKey",
+      "TypeCode",
+      "TypeName",
+      "TypeDescription",
+      "CreatedDate"
+    ],
+    "dim.DimRiskRating": [
+      "RiskRatingKey",
+      "RiskRatingCode",
+      "RiskRatingName",
+      "RiskCategory",
+      "NumericScore",
+      "PD_Probability",
+      "LGD_Probability",
+      "RequiredProvision_Percent",
+      "CreatedDate"
+    ],
+    "dim.DimStatementType": [
+      "StatementTypeKey",
+      "TypeCode",
+      "TypeName",
+      "PeriodMonths",
+      "IsAudited",
+      "CreatedDate"
+    ],
+    "fact.FACT_COVENANT_TEST": [
+      "CovenantTestKey",
+      "LoanKey",
+      "TestDateKey",
+      "CovenantTypeKey",
+      "ThresholdValue",
+      "ActualValue",
+      "PassFailStatus",
+      "ViolationSeverity",
+      "DaysSinceViolation",
+      "ActionRequired",
+      "ActionTaken",
+      "WaiverGranted",
+      "CreatedDate"
+    ],
+    "fact.FACT_CUSTOMER_FINANCIALS": [
+      "FinancialKey",
+      "CustomerKey",
+      "StatementDateKey",
+      "StatementTypeKey",
+      "Revenue",
+      "COGS",
+      "GrossProfit",
+      "OperatingExpenses",
+      "EBITDA",
+      "EBIT",
+      "InterestExpense",
+      "NetIncome",
+      "TotalAssets",
+      "CurrentAssets",
+      "FixedAssets",
+      "TotalLiabilities",
+      "CurrentLiabilities",
+      "LongTermDebt",
+      "TotalEquity",
+      "OperatingCashFlow",
+      "InvestingCashFlow",
+      "FinancingCashFlow",
+      "CurrentRatio",
+      "QuickRatio",
+      "DebtToEquityRatio",
+      "DebtServiceCoverageRatio",
+      "ROA",
+      "ROE",
+      "GrossMargin",
+      "NetMargin",
+      "CreatedDate"
+    ],
+    "fact.FACT_CUSTOMER_INTERACTION": [
+      "InteractionKey",
+      "InteractionId",
+      "CustomerKey",
+      "InteractionDateKey",
+      "InteractionTypeKey",
+      "InteractionChannelKey",
+      "Subject",
+      "Notes",
+      "Duration_Minutes",
+      "Outcome",
+      "RelatedLoanKey",
+      "RelatedApplicationKey",
+      "RequiresFollowUp",
+      "FollowUpDateKey",
+      "CreatedDate",
+      "ModifiedDate"
+    ],
+    "fact.FACT_LOAN_APPLICATION": [
+      "ApplicationKey",
+      "ApplicationId",
+      "CustomerKey",
+      "ApplicationDateKey",
+      "DecisionDateKey",
+      "ProductKey",
+      "PurposeKey",
+      "ApplicationStatusKey",
+      "RequestedAmount",
+      "ApprovedAmount",
+      "RequestedTerm",
+      "ApprovedTerm",
+      "CreditScoreAtApplication",
+      "DebtToIncomeRatio",
+      "AnnualRevenue",
+      "InternalRiskScore",
+      "DecisionCode",
+      "DecisionReason",
+      "ReviewDuration_Days",
+      "OriginatedLoanKey",
+      "IsApproved",
+      "IsConverted",
+      "CreatedDate",
+      "ModifiedDate"
+    ],
+    "fact.FACT_LOAN_BALANCE_DAILY": [
+      "BalanceKey",
+      "LoanKey",
+      "SnapshotDateKey",
+      "DelinquencyStatusKey",
+      "PrincipalBalance",
+      "InterestBalance",
+      "FeesBalance",
+      "TotalBalance",
+      "AccruedInterest",
       "DaysDelinquent",
-      "Notes"
+      "DelinquentAmount",
+      "Allowance",
+      "CreatedDate"
     ],
-    "dbo.PaymentSchedule": [
-      "ScheduleId",
+    "fact.FACT_LOAN_ORIGINATION": [
+      "LoanKey",
       "LoanId",
+      "CustomerKey",
+      "OriginationDateKey",
+      "MaturityDateKey",
+      "FirstPaymentDateKey",
+      "ProductKey",
+      "PurposeKey",
+      "DelinquencyStatusKey",
+      "OriginalAmount",
+      "FundedAmount",
+      "CurrentBalance",
+      "PrincipalPaid",
+      "InterestPaid",
+      "TermMonths",
+      "RemainingTermMonths",
+      "InterestRate",
+      "RateType",
+      "ReferenceRate",
+      "Margin",
+      "APR",
+      "OriginationFee",
+      "ProcessingFee",
+      "OtherFees",
+      "TotalFeesCollected",
+      "CollateralValue",
+      "LTV",
+      "DaysDelinquent",
+      "PaymentsMade",
+      "PaymentsScheduled",
+      "MissedPayments",
+      "LatePayments",
+      "NPV",
+      "IRR",
+      "ROE",
+      "Yield",
+      "IsActive",
+      "IsPaidOff",
+      "IsChargedOff",
+      "IsRestructured",
+      "HasPersonalGuarantee",
+      "CreatedDate",
+      "ModifiedDate"
+    ],
+    "fact.FACT_PAYMENT_TRANSACTION": [
+      "PaymentKey",
+      "PaymentId",
+      "LoanKey",
+      "PaymentDateKey",
+      "ScheduledDateKey",
+      "PaymentMethodKey",
+      "PaymentTypeKey",
+      "TotalPaymentAmount",
+      "PrincipalAmount",
+      "InterestAmount",
+      "FeesAmount",
+      "PenaltyAmount",
+      "ScheduledAmount",
       "PaymentNumber",
-      "DueDate",
-      "StartingPrincipal",
-      "PrincipalDue",
-      "InterestDue",
-      "TotalDue",
-      "CurrencyCode",
-      "Status",
-      "PaidFlag",
-      "PaidDate",
-      "EndingPrincipal"
-    ],
-    "dbo.RiskMetricHistory": [
-      "RiskMetricHistoryId",
-      "CompanyId",
-      "AsOfDate",
-      "MetricName",
-      "MetricValue",
-      "Source"
-    ],
-    "ref.Country": [
-      "CountryCode",
-      "CountryName",
-      "RegionId",
-      "SubregionId"
-    ],
-    "ref.Currency": [
-      "CurrencyCode",
-      "CurrencyName",
-      "Symbol"
-    ],
-    "ref.FXRateDaily": [
-      "RateDate",
-      "FromCurrency",
-      "ToCurrency",
-      "Rate"
-    ],
-    "ref.ReferenceRate": [
-      "ReferenceRateCode",
-      "Description",
-      "TenorMonths",
-      "CurrencyCode"
-    ],
-    "ref.Region": [
-      "RegionId",
-      "RegionName"
-    ],
-    "ref.Subregion": [
-      "SubregionId",
-      "SubregionName",
-      "RegionId"
+      "DaysLate",
+      "IsEarlyPayment",
+      "IsLatePayment",
+      "IsPrepayment",
+      "IsReversed",
+      "CreatedDate",
+      "ModifiedDate"
     ]
   },
-  "relationships": [
-    {
-      "from_table": "dbo.Collateral",
-      "from_column": "CurrencyCode",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "dbo.Collateral",
-      "from_column": "LoanId",
-      "to_table": "dbo.Loan",
-      "to_column": "LoanId"
-    },
-    {
-      "from_table": "dbo.Company",
-      "from_column": "CountryCode",
-      "to_table": "ref.Country",
-      "to_column": "CountryCode"
-    },
-    {
-      "from_table": "dbo.CompanyAddress",
-      "from_column": "CompanyId",
-      "to_table": "dbo.Company",
-      "to_column": "CompanyId"
-    },
-    {
-      "from_table": "dbo.CompanyAddress",
-      "from_column": "CountryCode",
-      "to_table": "ref.Country",
-      "to_column": "CountryCode"
-    },
-    {
-      "from_table": "dbo.Covenant",
-      "from_column": "LoanId",
-      "to_table": "dbo.Loan",
-      "to_column": "LoanId"
-    },
-    {
-      "from_table": "dbo.CovenantSchedule",
-      "from_column": "CovenantId",
-      "to_table": "dbo.Covenant",
-      "to_column": "CovenantId"
-    },
-    {
-      "from_table": "dbo.CovenantTestResult",
-      "from_column": "CovenantId",
-      "to_table": "dbo.Covenant",
-      "to_column": "CovenantId"
-    },
-    {
-      "from_table": "dbo.CovenantTestResult",
-      "from_column": "LoanId",
-      "to_table": "dbo.Loan",
-      "to_column": "LoanId"
-    },
-    {
-      "from_table": "dbo.CustomerProfile",
-      "from_column": "CompanyId",
-      "to_table": "dbo.Company",
-      "to_column": "CompanyId"
-    },
-    {
-      "from_table": "dbo.CustomerProfile",
-      "from_column": "ParentCompanyId",
-      "to_table": "dbo.Company",
-      "to_column": "CompanyId"
-    },
-    {
-      "from_table": "dbo.fact_loan_payments",
-      "from_column": "company_key",
-      "to_table": "dbo.dim_company",
-      "to_column": "company_key"
-    },
-    {
-      "from_table": "dbo.fact_loan_payments",
-      "from_column": "date_key",
-      "to_table": "dbo.dim_date",
-      "to_column": "date_key"
-    },
-    {
-      "from_table": "dbo.Loan",
-      "from_column": "CompanyId",
-      "to_table": "dbo.Company",
-      "to_column": "CompanyId"
-    },
-    {
-      "from_table": "dbo.Loan",
-      "from_column": "CurrencyCode",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "dbo.Loan",
-      "from_column": "ReferenceRateCode",
-      "to_table": "ref.ReferenceRate",
-      "to_column": "ReferenceRateCode"
-    },
-    {
-      "from_table": "dbo.PaymentEvent",
-      "from_column": "CurrencyCode",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "dbo.PaymentEvent",
-      "from_column": "LoanId",
-      "to_table": "dbo.Loan",
-      "to_column": "LoanId"
-    },
-    {
-      "from_table": "dbo.PaymentSchedule",
-      "from_column": "CurrencyCode",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "dbo.PaymentSchedule",
-      "from_column": "LoanId",
-      "to_table": "dbo.Loan",
-      "to_column": "LoanId"
-    },
-    {
-      "from_table": "dbo.RiskMetricHistory",
-      "from_column": "CompanyId",
-      "to_table": "dbo.Company",
-      "to_column": "CompanyId"
-    },
-    {
-      "from_table": "ref.Country",
-      "from_column": "RegionId",
-      "to_table": "ref.Region",
-      "to_column": "RegionId"
-    },
-    {
-      "from_table": "ref.Country",
-      "from_column": "SubregionId",
-      "to_table": "ref.Subregion",
-      "to_column": "SubregionId"
-    },
-    {
-      "from_table": "ref.FXRateDaily",
-      "from_column": "FromCurrency",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "ref.FXRateDaily",
-      "from_column": "ToCurrency",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "ref.ReferenceRate",
-      "from_column": "CurrencyCode",
-      "to_table": "ref.Currency",
-      "to_column": "CurrencyCode"
-    },
-    {
-      "from_table": "ref.Subregion",
-      "from_column": "RegionId",
-      "to_table": "ref.Region",
-      "to_column": "RegionId"
-    }
-  ]
+  "relationships": []
 }
