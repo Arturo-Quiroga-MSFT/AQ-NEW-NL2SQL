@@ -7,7 +7,7 @@ Follow these steps to test the universal NL2SQL app with your TERADATA-FI databa
 ### 1. Setup Environment
 
 ```bash
-cd /Users/arturoquiroga/GITHUB/AQ-NEW-NL2SQL/nl2sql_azureai_universal
+cd /Users/<YOUR_DB_USER>iroga/GITHUB/AQ-NEW-NL2SQL/nl2sql_azureai_universal
 
 # Copy environment template
 cp .env.example .env
@@ -26,7 +26,7 @@ PROJECT_ENDPOINT=<your-project-endpoint>
 MODEL_DEPLOYMENT_NAME=<your-model-deployment>
 
 # Azure SQL Database - TERADATA-FI
-AZURE_SQL_SERVER=aqsqlserver001.database.windows.net
+AZURE_SQL_SERVER=your-server.database.windows.net
 AZURE_SQL_DB=TERADATA-FI
 AZURE_SQL_USER=<your-username>
 AZURE_SQL_PASSWORD=<your-password>

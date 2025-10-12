@@ -1,25 +1,30 @@
 # NL2SQL Azure AI Agents - Universal Edition
 
-A database-agnostic Natural Language to SQL implementation using Azure AI Agent Service.
+A database-agnostic Natural Language to SQL implementation using Azure AI Agent Service with **conversational AI support**.
 
 ## Overview
 
-This is a clean, universal implementation that works with any Azure SQL database without hardcoded schema references. It dynamically discovers database schema and generates SQL queries from natural language.
+This is a clean, universal implementation that works with any Azure SQL database without hardcoded schema references. It dynamically discovers database schema and generates SQL queries from natural language. **Now with native conversation management** - ask follow-up questions naturally!
 
 ## Key Features
 
 - ✅ **Schema-Agnostic**: Works with any database schema
 - ✅ **Dynamic Schema Discovery**: Automatically reads tables, columns, and relationships
 - ✅ **Azure AI Agents**: Uses Azure AI Foundry Agent Service for intelligent SQL generation
+- ✅ **Conversational AI**: Thread-based conversation management for natural follow-ups
+- ✅ **Business Insights**: Third agent provides data analysis and recommendations ⭐ NEW
+- ✅ **Visual Indicators**: Adaptive Cards show conversation context and insights
 - ✅ **Cache Management**: Schema caching with configurable TTL
 - ✅ **Intent Extraction**: Separates intent understanding from SQL generation
 - ✅ **Safe Execution**: SQL sanitization and validation
-- ✅ **Result Formatting**: Pretty-printed table output
+- ✅ **Result Formatting**: Pretty-printed table output with full-width cards
 
 ## Architecture
 
 ```
 Natural Language Query
+    ↓
+[Thread Management] ← Conversation context
     ↓
 [Intent Extraction Agent]
     ↓
@@ -31,8 +36,54 @@ Natural Language Query
     ↓
 [SQL Executor]
     ↓
-Formatted Results
+[Results]
+    ↓
+[Data Insights Agent] ← NEW: Business intelligence
+    ↓
+Formatted Results + Insights + Conversation Badge
 ```
+
+### Three-Agent System ⭐ NEW
+
+1. **Intent Agent**: Natural language → Structured intent
+2. **SQL Agent**: Intent + Schema → Executable SQL
+3. **Insights Agent**: Results + Context → Business insights
+
+See [INSIGHTS_FEATURE.md](./INSIGHTS_FEATURE.md) for detailed documentation.
+
+## 🆕 Latest Features
+
+### Conversation Management
+Ask natural follow-up questions without repeating context:
+
+```
+You: "Show me top 5 customers"
+Bot: [Shows 5 customers]
+
+You: "Tell me about the third one"
+Bot: [Shows details for customer in row 3] 💬
+
+You: "What was their total balance?"
+Bot: [Shows balance naturally] 💬
+```
+
+### Business Insights ⭐ NEW
+Get AI-powered analysis with every query:
+
+```
+You: "Show top 10 customers by revenue"
+Bot: [Shows data table]
+     
+💡 Business Insights:
+📊 Top 10 customers generated $4.2M (38% of total)
+📈 Average revenue per customer: $420K
+⚠️ 2 customers showing declining trends
+💡 Consider diversification strategy
+```
+
+**Documentation:**
+- [CONVERSATION_MANAGEMENT.md](./CONVERSATION_MANAGEMENT.md) - Conversation features
+- [INSIGHTS_FEATURE.md](./INSIGHTS_FEATURE.md) - Business insights documentation
 
 ## Setup
 

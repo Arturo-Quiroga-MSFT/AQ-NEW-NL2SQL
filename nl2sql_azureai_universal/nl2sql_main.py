@@ -61,7 +61,8 @@ if not PROJECT_ENDPOINT:
 if not MODEL_DEPLOYMENT_NAME:
     raise ValueError("MODEL_DEPLOYMENT_NAME environment variable is required")
 
-# Initialize Azure AI Project Client
+# Initialize Azure AI Project Client with DefaultAzureCredential
+# Supports both beta versions (endpoint-based or subscription-based)
 project_client = AIProjectClient(
     endpoint=PROJECT_ENDPOINT,
     credential=DefaultAzureCredential(),
@@ -187,9 +188,15 @@ Given the user's intent and the database schema, generate a valid T-SQL query.
 Database Schema:
 {schema_context or 'Schema not provided - use generic table names'}
 
-Requirements:
+CRITICAL Requirements:
 - Generate clean, efficient T-SQL
-- Use proper JOINs when needed
+- Use TWO-PART table names ONLY (e.g., schema.TableName)
+- DO NOT use three-part names with database prefix (e.g., [database].[schema].[table])
+- IMPORTANT: Use ONLY the EXACT table names listed in the TABLES section above
+- DO NOT make up table names like 'dbo.customers' - check the actual schema first
+- This database uses a star schema with dimension tables in 'dim' schema and fact tables in 'fact' schema
+- You are already connected to the database, so just use schema.table format
+- Use proper JOINs when needed based on the foreign key relationships provided
 - Include appropriate WHERE clauses for filters
 - Use meaningful column aliases
 - Return ONLY the SQL query, no explanations
@@ -251,7 +258,14 @@ def generate_sql(intent_entities: str) -> str:
     try:
         from schema_reader import get_sql_database_schema_context
         schema_context = get_sql_database_schema_context()
-    except Exception:
+        print(f"[DEBUG] Schema context loaded: {len(schema_context)} characters")
+        
+        # Log first 500 chars to verify schema is correct
+        if schema_context:
+            preview = schema_context[:500]
+            print(f"[DEBUG] Schema preview: {preview}...")
+    except Exception as e:
+        print(f"[ERROR] Failed to load schema context: {e}")
         schema_context = ""
     
     # Get or create persistent SQL agent
@@ -295,6 +309,8 @@ def generate_sql(intent_entities: str) -> str:
 
 def extract_and_sanitize_sql(raw_sql: str) -> str:
     """Extract and clean SQL from agent response."""
+    print(f"[DEBUG] Raw SQL from AI: {raw_sql}")
+    
     # Remove markdown code blocks if present
     sql = re.sub(r'^```(?:sql)?\s*', '', raw_sql, flags=re.MULTILINE)
     sql = re.sub(r'```\s*$', '', sql, flags=re.MULTILINE)
@@ -302,6 +318,16 @@ def extract_and_sanitize_sql(raw_sql: str) -> str:
     # Trim whitespace
     sql = sql.strip()
     
+    # Remove three-part naming (database.schema.table) and convert to two-part (schema.table)
+    # Matches patterns like [DatabaseName].[schema].[table] or DatabaseName.schema.table
+    # This handles cases where the AI might include the database name
+    original_sql = sql
+    sql = re.sub(r'\[?[\w\-]+\]?\.\[?(dbo|dim|fact|[\w\-]+)\]?\.(\[?[\w\-]+\]?)', r'\1.\2', sql)
+    
+    if original_sql != sql:
+        print(f"[DEBUG] SQL sanitized: removed three-part naming")
+    
+    print(f"[DEBUG] Final SQL: {sql}")
     return sql
 
 
@@ -312,6 +338,111 @@ def _safe_import_sql_executor():
         return execute_sql_query
     except ImportError as e:
         raise ImportError("Unable to import execute_sql_query from sql_executor.") from e
+
+
+# ========== PUBLIC API FOR TEAMS BOT INTEGRATION ==========
+# These functions can be imported and used by external applications (e.g., Teams bot)
+
+def execute_and_format(sql: str, format_type: str = "dict") -> Dict[str, Any]:
+    """
+    Execute SQL query and return results in specified format.
+    
+    Args:
+        sql: The SQL query to execute
+        format_type: Output format - "dict" (default) or "table"
+    
+    Returns:
+        Dictionary containing:
+        - success: bool
+        - rows: List[Dict] (if successful)
+        - count: int (if successful)
+        - sql: str (the executed SQL)
+        - error: str (if failed)
+        - table: str (if format_type="table")
+    """
+    result = {
+        "success": False,
+        "sql": sql
+    }
+    
+    try:
+        execute_sql_query = _safe_import_sql_executor()
+        rows = execute_sql_query(sql)
+        result["success"] = True
+        result["rows"] = rows
+        result["count"] = len(rows)
+        
+        if format_type == "table":
+            table_text, _ = _format_table(rows)
+            result["table"] = table_text
+            
+        return result
+        
+    except Exception as e:
+        result["error"] = str(e)
+        return result
+
+
+def get_token_usage() -> Dict[str, int]:
+    """
+    Get current token usage statistics.
+    
+    Returns:
+        Dictionary with prompt, completion, and total token counts
+    """
+    return {
+        "prompt": _TOKEN_USAGE["prompt"],
+        "completion": _TOKEN_USAGE["completion"],
+        "total": _TOKEN_USAGE["total"]
+    }
+
+
+def reset_token_usage() -> None:
+    """Reset token usage counters."""
+    _reset_token_usage()
+
+
+def process_nl_query(query: str, execute: bool = True) -> Dict[str, Any]:
+    """
+    Complete NL2SQL pipeline: Extract intent → Generate SQL → Execute (optional).
+    
+    This is the main entry point for external applications like Teams bot.
+    
+    Args:
+        query: Natural language query
+        execute: Whether to execute the generated SQL (default: True)
+    
+    Returns:
+        Dictionary containing:
+        - intent: str (extracted intent JSON)
+        - sql_raw: str (raw SQL from agent)
+        - sql: str (sanitized SQL)
+        - results: Dict (if execute=True, from execute_and_format)
+        - token_usage: Dict (prompt, completion, total tokens)
+    """
+    _reset_token_usage()
+    
+    # Step 1: Extract intent
+    intent_entities = extract_intent(query)
+    
+    # Step 2: Generate SQL
+    raw_sql = generate_sql(intent_entities)
+    sql = extract_and_sanitize_sql(raw_sql)
+    
+    response = {
+        "intent": intent_entities,
+        "sql_raw": raw_sql,
+        "sql": sql,
+        "token_usage": get_token_usage()
+    }
+    
+    # Step 3: Execute (optional)
+    if execute:
+        response["results"] = execute_and_format(sql, format_type="dict")
+    
+    return response
+
+# ========== END PUBLIC API ==========
 
 
 # ---------- Output formatting ----------

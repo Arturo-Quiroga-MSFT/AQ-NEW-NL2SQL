@@ -1,5 +1,5 @@
 # ========================================
-# Requirements for NL2SQL Teams Bot
+# Production Requirements for NL2SQL Teams Bot
 # ========================================
 
 # Microsoft 365 Agents SDK
@@ -9,9 +9,9 @@ microsoft-agents-hosting-aiohttp==0.4.0
 microsoft-agents-authentication-msal==0.4.0
 
 # Azure AI & OpenAI
-azure-ai-projects>=1.0.0b12
-azure-ai-inference>=1.0.0b6
-azure-identity>=1.19.0
+azure-ai-projects==1.0.0b6
+azure-ai-inference==1.0.0b6
+azure-identity==1.19.0
 openai==1.59.8
 
 # Web Server
@@ -19,18 +19,16 @@ aiohttp>=3.11.11
 gunicorn==23.0.0
 
 # Database
-pyodbc>=5.2.0
+pyodbc==5.2.0
 
 # Utilities
-python-dotenv>=1.0.0
+python-dotenv==1.1.1
 pydantic>=2.10.4
-requests>=2.32.0
-streamlit>=1.40.0
-pandas>=2.2.0
 
-# Dependencies
+# Dependencies pulled in by above packages
 pyjwt>=2.10.1
 isodate>=0.6.1
 azure-core>=1.30.0
 msal>=1.31.1
+requests>=2.32.3
 cryptography>=44.0.0

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "<YOUR_BOT_ID_HERE>",
+  "packageName": "com.contoso.nl2sqlbot",
+  "developer": {
+    "name": "Contoso Corp",
+    "websiteUrl": "https://www.contoso.com",
+    "privacyUrl": "https://www.contoso.com/privacy",
+    "termsOfUseUrl": "https://www.contoso.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "NL2SQL Bot",
+    "full": "Natural Language to SQL Database Query Bot"
+  },
+  "description": {
+    "short": "Query databases using natural language",
+    "full": "A bot that converts your natural language questions into SQL queries and returns results from the TERADATA-FI database. Ask questions like 'How many customers do we have?' or 'Show me the top 5 loans by amount'."
+  },
+  "accentColor": "#FFFFFF",
+  "bots": [
+    {
+      "botId": "<YOUR_BOT_ID_HERE>",
+      "scopes": [
+        "personal",
+        "team",
+        "groupchat"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "2kzs3w3z-3978.use.devtunnels.ms"
+  ]
+}

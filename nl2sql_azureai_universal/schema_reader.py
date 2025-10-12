@@ -233,7 +233,11 @@ def _build_context_from_metadata(meta: Dict[str, Any]) -> str:
 	# General SQL guidelines
 	lines.append("SQL GENERATION GUIDELINES:\n")
 	lines.append("- Generate T-SQL compatible with Azure SQL Database\n")
-	lines.append("- Use schema-qualified table names (e.g., schema.TableName)\n")
+	lines.append("- Use TWO-PART table names ONLY (e.g., schema.TableName)\n")
+	lines.append("- DO NOT use three-part names with database prefix (already connected to database)\n")
+	lines.append("- IMPORTANT: Use the EXACT table names from the TABLES section below\n")
+	lines.append("- This database uses a star schema with 'dim' (dimension) and 'fact' schemas\n")
+	lines.append("- Do NOT assume generic table names like 'dbo.customers' - check the actual schema\n")
 	lines.append("- Use appropriate JOINs based on foreign key relationships\n")
 	lines.append("- Use GROUP BY for aggregations\n")
 	lines.append("- Include ORDER BY for result consistency\n")
@@ -308,12 +312,22 @@ def get_sql_database_schema_context(ttl_seconds: Optional[int] = None) -> str:
 		if CACHE_FILE.exists():
 			age = time.time() - CACHE_FILE.stat().st_mtime
 			stale = age > ttl
+			if stale:
+				print(f"[INFO] Schema cache is stale (age: {age:.0f}s > TTL: {ttl}s), refreshing...")
+		else:
+			print(f"[INFO] Schema cache not found at {CACHE_FILE}, fetching from database...")
 		
 		if stale:
-			print(f"[INFO] Schema cache is stale (age: {age:.0f}s > TTL: {ttl}s), refreshing...")
 			refresh_schema_cache()
 		
 		meta = _load_cache()
+		
+		# Validate we have table data
+		if not meta.get("tables"):
+			print(f"[WARNING] Schema cache has no tables, forcing refresh...")
+			refresh_schema_cache()
+			meta = _load_cache()
+		
 		return _build_context_from_metadata(meta)
 	
 	except Exception as e:
