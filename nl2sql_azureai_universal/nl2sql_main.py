@@ -459,11 +459,12 @@ def process_nl_query(query: str, execute: bool = True, thread_id: Optional[str] 
     """
     _reset_token_usage()
     
-    # Step 1: Extract intent (with thread continuity)
+    # Step 1: Extract intent (with thread continuity for conversation context)
     intent_entities, thread_id_after_intent = extract_intent(query, thread_id)
     
-    # Step 2: Generate SQL (reuse same thread for conversation continuity)
-    raw_sql, thread_id_after_sql = generate_sql(intent_entities, thread_id_after_intent)
+    # Step 2: Generate SQL (use FRESH thread to avoid contamination from previous SQL patterns)
+    # SQL generation should be based purely on current intent, not previous SQL
+    raw_sql, _ = generate_sql(intent_entities, thread_id=None)  # Always use fresh thread for SQL
     sql = extract_and_sanitize_sql(raw_sql)
     
     response = {
@@ -471,7 +472,7 @@ def process_nl_query(query: str, execute: bool = True, thread_id: Optional[str] 
         "sql_raw": raw_sql,
         "sql": sql,
         "token_usage": get_token_usage(),
-        "thread_id": thread_id_after_sql  # Return thread_id for next query
+        "thread_id": thread_id_after_intent  # Return intent thread_id for conversation continuity
     }
     
     # Step 3: Execute (optional)
