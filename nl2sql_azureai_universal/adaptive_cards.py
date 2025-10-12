@@ -131,7 +131,8 @@ class AdaptiveCardBuilder:
                     "text": f"```sql\n{sql}\n```",
                     "wrap": True,
                     "fontType": "monospace",
-                    "spacing": "small"
+                    "spacing": "small",
+                    "color": "default"
                 }
             ]
         }
@@ -407,7 +408,8 @@ class AdaptiveCardBuilder:
                         "text": f"```sql\n{sql}\n```",
                         "wrap": True,
                         "fontType": "monospace",
-                        "spacing": "small"
+                        "spacing": "small",
+                        "color": "default"
                     }
                 ]
             }
