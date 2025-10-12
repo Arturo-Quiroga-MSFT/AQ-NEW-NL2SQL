@@ -422,6 +422,21 @@ def reset_token_usage() -> None:
     _reset_token_usage()
 
 
+def cleanup_session_agents(thread_id: str) -> None:
+    """
+    Clean up agents and thread for a conversation session.
+    
+    Args:
+        thread_id: Thread ID to clean up
+    """
+    try:
+        # Delete the thread to clean up conversation history
+        project_client.agents.threads.delete(thread_id=thread_id)
+        print(f"[INFO] Cleaned up thread: {thread_id}")
+    except Exception as e:
+        print(f"[WARNING] Failed to cleanup thread {thread_id}: {e}")
+
+
 def process_nl_query(query: str, execute: bool = True, thread_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Complete NL2SQL pipeline: Extract intent → Generate SQL → Execute (optional).
