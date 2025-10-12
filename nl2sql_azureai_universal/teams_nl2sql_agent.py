@@ -292,11 +292,12 @@ Built with ❤️ for seamless database querying in Teams!"""
         # Track if this is part of an ongoing conversation
         is_conversation = thread_id is not None
         
-        # Call the NL2SQL pipeline with thread for conversation continuity
+        # Call the NL2SQL pipeline with thread_id for conversation continuity
         result = process_nl_query(user_query, execute=True, thread_id=thread_id)
         
         # Store thread_id for future messages in this conversation
-        CONVERSATION_THREADS[conversation_id] = result.get("thread_id")
+        if "thread_id" in result:
+            CONVERSATION_THREADS[conversation_id] = result["thread_id"]
         
         # Send Adaptive Card or plain text response
         if ADAPTIVE_CARDS_ENABLED:

@@ -209,14 +209,21 @@ CRITICAL Requirements:
     return _SQL_AGENT_ID
 
 
-def extract_intent(query: str) -> str:
-    """Extract intent and entities from natural language query using Azure AI Agent."""
+def extract_intent(query: str, thread_id: Optional[str] = None) -> tuple[str, str]:
+    """Extract intent and entities from natural language query using Azure AI Agent.
+    
+    Returns:
+        tuple: (intent_json, thread_id) for conversation continuity
+    """
     
     # Get or create persistent agent
     agent_id = _get_or_create_intent_agent()
     
-    # Create thread
-    thread = project_client.agents.threads.create()
+    # Use existing thread or create new one
+    if thread_id:
+        thread = type('Thread', (), {'id': thread_id})()  # Mock thread object with id
+    else:
+        thread = project_client.agents.threads.create()
     
     # Send message
     project_client.agents.messages.create(
@@ -241,18 +248,25 @@ def extract_intent(query: str) -> str:
     
     # Get response
     messages = project_client.agents.messages.list(thread_id=thread.id)
+    intent_result = "{}"
     for message in messages:
         if message.role == "assistant":
             if hasattr(message, 'text_messages') and message.text_messages:
-                return message.text_messages[0].text.value
+                intent_result = message.text_messages[0].text.value
+                break
             elif hasattr(message, 'content'):
-                return str(message.content)
+                intent_result = str(message.content)
+                break
     
-    return "{}"
+    return intent_result, thread.id
 
 
-def generate_sql(intent_entities: str) -> str:
-    """Generate SQL query based on extracted intent using Azure AI Agent."""
+def generate_sql(intent_entities: str, thread_id: Optional[str] = None) -> tuple[str, str]:
+    """Generate SQL query based on extracted intent using Azure AI Agent.
+    
+    Returns:
+        tuple: (sql_query, thread_id) for conversation continuity
+    """
     
     # Get schema context
     try:
@@ -271,8 +285,11 @@ def generate_sql(intent_entities: str) -> str:
     # Get or create persistent SQL agent
     agent_id = _get_or_create_sql_agent(schema_context)
     
-    # Create thread
-    thread = project_client.agents.threads.create()
+    # Use existing thread or create new one
+    if thread_id:
+        thread = type('Thread', (), {'id': thread_id})()  # Mock thread object with id
+    else:
+        thread = project_client.agents.threads.create()
     
     # Send message with intent
     project_client.agents.messages.create(
@@ -297,14 +314,17 @@ def generate_sql(intent_entities: str) -> str:
     
     # Get response
     messages = project_client.agents.messages.list(thread_id=thread.id)
+    sql_result = "SELECT 1;"
     for message in messages:
         if message.role == "assistant":
             if hasattr(message, 'text_messages') and message.text_messages:
-                return message.text_messages[0].text.value
+                sql_result = message.text_messages[0].text.value
+                break
             elif hasattr(message, 'content'):
-                return str(message.content)
+                sql_result = str(message.content)
+                break
     
-    return "SELECT 1;"
+    return sql_result, thread.id
 
 
 def extract_and_sanitize_sql(raw_sql: str) -> str:
@@ -402,7 +422,7 @@ def reset_token_usage() -> None:
     _reset_token_usage()
 
 
-def process_nl_query(query: str, execute: bool = True) -> Dict[str, Any]:
+def process_nl_query(query: str, execute: bool = True, thread_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Complete NL2SQL pipeline: Extract intent → Generate SQL → Execute (optional).
     
@@ -411,6 +431,7 @@ def process_nl_query(query: str, execute: bool = True) -> Dict[str, Any]:
     Args:
         query: Natural language query
         execute: Whether to execute the generated SQL (default: True)
+        thread_id: Optional thread ID for conversation continuity
     
     Returns:
         Dictionary containing:
@@ -419,21 +440,23 @@ def process_nl_query(query: str, execute: bool = True) -> Dict[str, Any]:
         - sql: str (sanitized SQL)
         - results: Dict (if execute=True, from execute_and_format)
         - token_usage: Dict (prompt, completion, total tokens)
+        - thread_id: str (conversation thread ID for continuity)
     """
     _reset_token_usage()
     
-    # Step 1: Extract intent
-    intent_entities = extract_intent(query)
+    # Step 1: Extract intent (with thread continuity)
+    intent_entities, thread_id_after_intent = extract_intent(query, thread_id)
     
-    # Step 2: Generate SQL
-    raw_sql = generate_sql(intent_entities)
+    # Step 2: Generate SQL (reuse same thread for conversation continuity)
+    raw_sql, thread_id_after_sql = generate_sql(intent_entities, thread_id_after_intent)
     sql = extract_and_sanitize_sql(raw_sql)
     
     response = {
         "intent": intent_entities,
         "sql_raw": raw_sql,
         "sql": sql,
-        "token_usage": get_token_usage()
+        "token_usage": get_token_usage(),
+        "thread_id": thread_id_after_sql  # Return thread_id for next query
     }
     
     # Step 3: Execute (optional)
