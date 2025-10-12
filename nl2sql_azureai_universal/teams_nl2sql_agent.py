@@ -309,9 +309,7 @@ Built with ❤️ for seamless database querying in Teams!"""
                     results=result.get("results", {}),
                     token_usage=result.get("token_usage"),
                     user_query=user_query,
-                    elapsed_time=result.get("elapsed_time"),
-                    is_conversation=is_conversation,
-                    insights=result.get("insights")  # Pass insights from pipeline
+                    execution_time=result.get("elapsed_time")
                 )
             else:
                 # Create error card with conversation indicator
@@ -325,8 +323,7 @@ Built with ❤️ for seamless database querying in Teams!"""
                     error_message=error_msg,
                     sql=result.get("sql"),
                     suggestions=suggestions,
-                    user_query=user_query,
-                    is_conversation=is_conversation
+                    user_query=user_query
                 )
             
             # Send as attachment
