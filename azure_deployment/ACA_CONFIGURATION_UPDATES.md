@@ -169,7 +169,7 @@ az containerapp update \
 |----------|---------|---------|
 | `AZURE_SQL_SERVER` | SQL Server hostname | `aqsqlserver001.database.windows.net` |
 | `AZURE_SQL_DB` | Database name | `TERADATA-FI` |
-| `AZURE_SQL_USER` | Database username | `arturoqu` |
+| `AZURE_SQL_USER` | Database username | `<YOUR_DB_USER>` |
 | `AZURE_SQL_PASSWORD` | Database password | `YourSecurePassword` |
 
 ### Azure OpenAI Configuration

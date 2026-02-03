@@ -20,8 +20,8 @@ SQL_PASSWORD="${SQL_PASSWORD:-}"
 OPENAI_ENDPOINT="https://aq-ai-foundry-sweden-central.openai.azure.com/"
 OPENAI_DEPLOYMENT="gpt-5"
 SQL_SERVER="aqsqlserver001.database.windows.net"
-SQL_DB="CONTOSO-FI"
-SQL_USER="arturoqu"
+SQL_DB="TERADATA-FI"
+SQL_USER="<YOUR_DB_USER>"
 
 # Secret names (MUST be lowercase + hyphens)
 SECRET_NAME_OPENAI="openai-api-key"

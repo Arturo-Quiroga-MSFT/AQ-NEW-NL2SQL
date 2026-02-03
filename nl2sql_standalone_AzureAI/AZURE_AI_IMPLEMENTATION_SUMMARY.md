@@ -68,7 +68,7 @@ MODEL_DEPLOYMENT_NAME=gpt-4.1
 # Azure SQL Database (same as LangChain version)
 AZURE_SQL_SERVER=aqsqlserver001.database.windows.net
 AZURE_SQL_DB=CONTOSO-FI
-AZURE_SQL_USER=arturoqu
+AZURE_SQL_USER=<YOUR_DB_USER>
 AZURE_SQL_PASSWORD=<password>
 ```
 

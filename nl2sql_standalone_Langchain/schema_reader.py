@@ -132,18 +132,14 @@ def refresh_schema_cache() -> Path:
 
 def _build_context_from_metadata(meta: Dict[str, Any]) -> str:
 	lines = []
-	lines.append("DATABASE: CONTOSO-FI (Azure SQL)\n")
-	# Key guidance
+	db_name = os.getenv("AZURE_SQL_DB", "TERADATA-FI")
+	lines.append(f"DATABASE: {db_name} (Azure SQL)\n")
+	# Key guidance for TERADATA-FI star schema
 	lines.append("GUIDELINES\n")
-	lines.append("- Prefer dbo.vw_LoanPortfolio for simple portfolio-style questions.\n")
-	lines.append("- For hard/complex questions, use the base tables (Loan, Company, Collateral, Covenant, PaymentSchedule, etc.) and generate SQL with multiple joins, subqueries, CTEs, or advanced logic as needed.\n")
-	lines.append("- Use appropriate GROUP BY for aggregates; weight interest rate averages by PrincipalAmount if needed.\n")
+	lines.append("- This is a STAR SCHEMA database with fact and dimension tables.\n")
+	lines.append("- Join fact tables (fact.FACT_LOAN_ORIGINATION, fact.FACT_LOAN_APPLICATION, fact.FACT_PAYMENT_TRANSACTION, etc.) with dimension tables (dim.DimCustomer, dim.DimLoanProduct, dim.DimIndustry, dim.DimDate, etc.).\n")
+	lines.append("- Use appropriate GROUP BY for aggregates; use date dimensions for time-based analysis.\n")
 	lines.append("- Do not emit USE or GO; return a single executable SELECT statement.\n\n")
-
-	# View is stable and convenient; keep it documented
-	lines.append("VIEW\n")
-	lines.append("- dbo.vw_LoanPortfolio: Denormalized portfolio view with columns including LoanId, LoanNumber, CompanyName, Industry, CreditRating, CountryName, RegionName, OriginationDate, MaturityDate, PrincipalAmount, CurrencyCode, InterestRatePct, InterestRateType, ReferenceRate, SpreadBps, AmortizationType, PaymentFreqMonths, Status, Purpose\n")
-	lines.append("  (Recommended for simple portfolio queries. For hard questions, prefer base tables and advanced SQL.)\n\n")
 
 	# Tables
 	lines.append("TABLES\n")

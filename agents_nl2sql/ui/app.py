@@ -54,7 +54,7 @@ st.markdown(
 )
 st.caption("Environment health badges update after a run.")
 st.markdown("""
-**Welcome!** This app demonstrates an agent-based pipeline for translating natural language questions into SQL queries and running them live against the Contoso-FI demo database.
+**Welcome!** This app demonstrates an agent-based pipeline for translating natural language questions into SQL queries and running them live against the Teradata-FI demo database.
 
 **What can you do?**
 - Ask questions about loans, companies, collateral, covenants, payments, risk, and more.
@@ -62,12 +62,12 @@ st.markdown("""
 - View, download, and analyze results instantly.
 
 **About the demo database:**
-- **Tables:** Loans, Companies, Collateral, Covenants, Payments, Risk Metrics, Currencies, Regions, and more.
-- **Example questions:** Portfolio analysis, top companies, regional breakdowns, risk metrics, overdue payments, and more.
+- **Schema:** Star schema with dimension and fact tables in TERADATA-FI database
+- **Example questions:** Portfolio analysis, loan applications, customer interactions, payment transactions, and more.
 - **Schema highlights:**
-    - `dbo.vw_LoanPortfolio`: Denormalized view for portfolio-style queries
-    - `dbo.Loan`, `dbo.Company`, `dbo.Collateral`, `dbo.PaymentSchedule`, `dbo.Covenant`, `ref.Currency`, `ref.Region`, etc.
-    - Relationships between loans, companies, collateral, and reference data
+    - **Fact tables:** `fact.FACT_LOAN_ORIGINATION`, `fact.FACT_LOAN_APPLICATION`, `fact.FACT_LOAN_BALANCE_DAILY`, `fact.FACT_PAYMENT_TRANSACTION`, `fact.FACT_CUSTOMER_INTERACTION`
+    - **Dimension tables:** `dim.DimCustomer`, `dim.DimLoanProduct`, `dim.DimIndustry`, `dim.DimDate`, `dim.DimRiskRating`, etc.
+    - Star schema relationships between facts and dimensions
 """)
 
 # Sidebar: schema cache refresh

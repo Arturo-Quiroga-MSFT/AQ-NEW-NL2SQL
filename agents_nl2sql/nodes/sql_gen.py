@@ -18,9 +18,9 @@ def build_sql_prompt(schema: str, intent_entities: str | None, category: str, us
     if category.lower() == "hard":
         base.extend([
             "HARD QUESTION DIRECTIVES:",
-            "- Do NOT rely on dbo.vw_LoanPortfolio; instead JOIN base tables (Loan, Company, ref.Country, ref.Region, Collateral, etc.).",
-            "- Use CTEs for derived aggregations (e.g., collateral sums, ratio calculations).",
-            "- Demonstrate advanced SQL patterns (multiple joins, conditional handling, NULL safety).",
+            "- Use star schema: JOIN fact tables (fact.FACT_LOAN_ORIGINATION, fact.FACT_LOAN_APPLICATION, fact.FACT_PAYMENT_TRANSACTION) with dimension tables (dim.DimCustomer, dim.DimLoanProduct, dim.DimIndustry, dim.DimDate).",
+            "- Use CTEs for derived aggregations (e.g., loan totals, payment sums, ratio calculations).",
+            "- Demonstrate advanced SQL patterns (star schema joins, conditional handling, NULL safety).",
         ])
     # Few-shot examples only for hard to steer complexity
     if category.lower() == "hard":
