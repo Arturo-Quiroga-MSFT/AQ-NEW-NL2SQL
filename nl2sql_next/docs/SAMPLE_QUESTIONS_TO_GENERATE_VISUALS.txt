@@ -1,0 +1,79 @@
+Absolutely! Here are sample questions you can ask using your RetailDW views that are ideal for generating pie charts, bar charts, or line charts. For each chart type, I’ll give you the kind of business question you can ask and the view(s) you’d use.
+
+---
+
+Pie Chart Questions
+
+Pie charts are best for showing proportions or shares of a whole.
+
+What is the distribution of customers by region?
+
+*View:* dbo.vw_CustomerLifetimeValue
+*Pie slices:* Each region’s share of total customers.
+
+What percentage of customers are in each membership tier?
+
+*View:* dbo.vw_CustomerLifetimeValue
+*Pie slices:* Bronze, Silver, Gold, etc.
+
+What is the breakdown of orders by product category?
+
+*View:* dbo.vw_ProductPerformance
+*Pie slices:* Electronics, Clothing, etc.
+
+---
+
+Bar Chart Questions
+
+Bar charts are great for comparing values across categories.
+
+Which products have the highest total revenue?
+
+*View:* dbo.vw_ProductPerformance
+*Bars:* Top 10 products by revenue.
+
+How many orders were placed in each region?
+
+*View:* dbo.vw_CustomerLifetimeValue
+*Bars:* Order count per region.
+
+What is the total profit by month in 2024?
+
+*View:* dbo.vw_MonthlySales
+*Bars:* Each month’s profit.
+
+How many customers are in each age group?
+
+*View:* dim.DimCustomer
+*Bars:* Age group counts.
+
+---
+
+Line Chart Questions
+
+Line charts are best for trends over time.
+
+How has total revenue changed month by month in 2024?
+
+*View:* dbo.vw_MonthlySales
+*Line:* Revenue over months.
+
+What is the trend of order count over the last 12 months?
+
+*View:* dbo.vw_MonthlySales
+*Line:* Order count per month.
+
+How does average order value change over time?
+
+*View:* dbo.vw_MonthlySales or dbo.vw_CustomerLifetimeValue
+*Line:* Avg order value per month or per customer tenure.
+
+---
+
+How to Use These
+
+Pie chart: Use for “share of total” (e.g., region, tier, category).
+
+Bar chart: Use for “top N” or “comparison” (e.g., products, regions, months).
+
+Line chart: Use for “trend over time” (e.g., revenue, orders, profit).

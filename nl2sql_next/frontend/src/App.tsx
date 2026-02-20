@@ -4,9 +4,22 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
+import { toPng } from "html-to-image";
 import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+
+/** Export a chart container to PNG and trigger download. */
+function exportChartAsPng(container: HTMLElement, filename = "chart.png") {
+  toPng(container, { pixelRatio: 2, backgroundColor: "#1a1a2e" })
+    .then((dataUrl) => {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = filename;
+      a.click();
+    })
+    .catch((err) => console.error("Chart export failed:", err));
+}
 
 /** Lightweight markdown→HTML for admin answers (headers, bold, bullets, code blocks). */
 function simpleMarkdown(md: string): string {
@@ -601,7 +614,7 @@ function App() {
                           </div>
                         )}
                         {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && chartView.has(i) ? (
-                          <div className="chart-container">
+                          <div className="chart-container" ref={(el) => { if (el) el.dataset.chartIndex = String(i); }}>
                             <ChartPanel
                               chartType={msg.chart_type as "bar" | "line" | "pie"}
                               columns={msg.columns}
@@ -609,6 +622,14 @@ function App() {
                               xCol={msg.x_col}
                               yCol={msg.y_col}
                             />
+                            <button
+                              className="chart-export-btn"
+                              title="Download chart as PNG"
+                              onClick={(e) => {
+                                const container = (e.target as HTMLElement).closest(".chart-container");
+                                if (container) exportChartAsPng(container as HTMLElement, `chart-${i + 1}.png`);
+                              }}
+                            >📷 Export PNG</button>
                           </div>
                         ) : (
                           <div className="table-wrap">
