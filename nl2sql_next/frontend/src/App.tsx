@@ -135,43 +135,73 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>NL2SQL</h1>
-        <span className="subtitle">RetailDW &middot; Azure SQL &middot; gpt-4.1</span>
-        <button className="new-btn" onClick={handleNewSession}>
-          New Chat
-        </button>
-        {messages.length > 0 && (
-          <button className="save-btn" onClick={handleSaveChat}>
-            Save Chat
+        <div className="header-top">
+          <h1>NL2SQL</h1>
+          <span className="subtitle">RetailDW &middot; Azure SQL &middot; gpt-4.1</span>
+          <button className="new-btn" onClick={handleNewSession}>
+            New Chat
           </button>
-        )}
+          {messages.length > 0 && (
+            <button className="save-btn" onClick={handleSaveChat}>
+              Save Chat
+            </button>
+          )}
+        </div>
+        <div className="header-caps">
+          <span className="cap-pill data-pill">Data Queries</span>
+          <span className="cap-pill admin-pill">Schema Explorer</span>
+          <span className="cap-pill admin-pill">DB Assistant</span>
+          <span className="cap-pill feat-pill">Multi-turn</span>
+          <span className="cap-pill feat-pill">Error Correction</span>
+          <span className="cap-pill feat-pill">Few-shot</span>
+        </div>
       </header>
 
       <main className="chat">
-        {messages.length === 0 && (
-          <div className="empty">
-            <p>Ask a question about the RetailDW database in plain English.</p>
+        <div className="welcome">
+          <p className="welcome-title">Ask anything about the RetailDW database in plain English</p>
+          <p className="welcome-sub">Query your data, explore the schema, or get DBA advice — all in one chat.</p>
+
+          <div className="suggestion-group">
+            <span className="sg-label data-pill">Data Queries</span>
             <div className="suggestions">
               {[
                 "What are the top 5 products by revenue?",
                 "Show monthly sales for 2024",
                 "Which customers have the most returns?",
-                "What tables are in the database?",
-                "Describe the FactOrders table",
+                "Average order value by store",
               ].map((q) => (
-                <button
-                  key={q}
-                  className="suggestion"
-                  onClick={() => {
-                    setInput(q);
-                  }}
-                >
-                  {q}
-                </button>
+                <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
               ))}
             </div>
           </div>
-        )}
+
+          <div className="suggestion-group">
+            <span className="sg-label admin-pill">Schema &amp; DB Assistant</span>
+            <div className="suggestions">
+              {[
+                "What tables are in the database?",
+                "Describe the DimCustomer table",
+                "How are orders related to products?",
+                "Suggest indexes for FactOrders",
+              ].map((q) => (
+                <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="suggestion-group">
+            <span className="sg-label feat-pill">Follow-ups &amp; Multi-turn</span>
+            <div className="suggestions">
+              {[
+                "Show monthly sales for 2024  →  now for 2025",
+                "Top 10 products  →  filter by Clothing",
+              ].map((q) => (
+                <button key={q} className="suggestion suggestion-hint" disabled>{q}</button>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {messages.map((msg, i) =>
           msg.role === "user" ? (

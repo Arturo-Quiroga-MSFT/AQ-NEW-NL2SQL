@@ -14,14 +14,34 @@
 /* Header */
 .header {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  flex-direction: column;
   background: #16213e;
   border-bottom: 1px solid #0f3460;
 }
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+}
 .header h1 { font-size: 1.2rem; color: #e94560; }
 .subtitle { color: #888; font-size: 0.8rem; flex: 1; }
+.header-caps {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px 8px;
+  flex-wrap: wrap;
+}
+.cap-pill {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+.data-pill  { background: #e9456022; color: #e94560; border: 1px solid #e9456044; }
+.admin-pill { background: #4ecca322; color: #4ecca3; border: 1px solid #4ecca344; }
+.feat-pill  { background: #79c0ff22; color: #79c0ff; border: 1px solid #79c0ff44; }
 .new-btn {
   background: #0f3460;
   color: #e0e0e0;
@@ -53,17 +73,48 @@
   gap: 12px;
 }
 
-.empty {
-  margin: auto;
+.welcome {
   text-align: center;
   color: #888;
+  max-width: 700px;
+  margin: 0 auto 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #0f3460;
+}
+.welcome-title {
+  font-size: 1.1rem;
+  color: #e0e0e0;
+  margin-bottom: 4px;
+}
+.welcome-sub {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 20px;
+}
+.suggestion-group {
+  margin-bottom: 14px;
+}
+.sg-label {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
 }
 .suggestions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 4px;
   justify-content: center;
+}
+.suggestion-hint {
+  opacity: 0.5;
+  cursor: default !important;
+  font-style: italic;
+  border-style: dashed !important;
 }
 .suggestion {
   background: #16213e;
