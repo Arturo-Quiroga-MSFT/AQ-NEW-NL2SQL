@@ -1,0 +1,85 @@
+Great question! The provided views in your RetailDW database are designed to make common analytics and reporting tasks much easier by pre-joining and aggregating data. Here are sample questions you can ask, leveraging each view for business insights:
+
+---
+
+1. dbo.vw_CustomerLifetimeValue
+
+Purpose: Analyze customer value, loyalty, and segmentation.
+
+Sample Questions:
+Who are our top 10 customers by lifetime revenue?
+
+What is the average order value for Gold tier customers?
+
+Which region has the highest average customer tenure?
+
+How many customers have placed more than 5 orders?
+
+What is the distribution of customers by membership tier?
+
+
+---
+
+2. dbo.vw_MonthlySales
+
+Purpose: Track sales performance over time.
+
+Sample Questions:
+What was the total revenue and profit for each month in 2023?
+
+Which month had the highest profit margin in 2024?
+
+How did order counts trend quarter-over-quarter last year?
+
+What is the average discount given per month?
+
+Which months had a negative profit margin?
+
+
+---
+
+3. dbo.vw_OrderSummary
+
+Purpose: Analyze order details, customer-product relationships, and sales channels.
+
+Sample Questions:
+Show all orders placed by customer "Leslie Johnson" in 2024.
+
+Which products were most frequently ordered in Q1 2023?
+
+What is the average number of line items per order?
+
+List all orders shipped to the "Northeast" region last month.
+
+How many unique customers placed orders in March 2024?
+
+
+---
+
+4. dbo.vw_ProductPerformance
+
+Purpose: Evaluate product sales, popularity, and customer feedback.
+
+Sample Questions:
+Which products had the highest total units sold in 2024?
+
+What is the average rating for each product category?
+
+List the top 5 brands by total revenue.
+
+Which products have the highest return counts?
+
+How many reviews did "ClearView Headphone QF19" receive?
+
+
+---
+
+General Tips for Using Views:
+
+Use views for quick, high-level analytics without writing complex joins.
+
+Filter by year, month, region, product, or customer for targeted insights.
+
+Combine views with aggregations (SUM, AVG, COUNT) for summaries.
+
+Use ORDER BY and TOP N to find best/worst performers.
