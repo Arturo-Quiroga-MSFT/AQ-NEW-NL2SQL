@@ -153,15 +153,292 @@ No framework required. Each agent is independently testable. State is a plain di
 
 ---
 
-## Existing Agent Work (reference)
+## Tool-Use Architecture — Admin Assistant with Write Capabilities
 
-The `agents_nl2sql/` directory at the repo root contains a prior LangGraph-based implementation with:
-- `graph.py` — LangGraph state graph
-- `state.py` — shared state definition
-- `nodes/` — individual processing nodes
-- `tools/` — LangGraph tool definitions
+> This section documents the planned evolution of the `admin_assist` mode from a
+> question-answering system into a **tool-using agent** that can **read and write**
+> to the database with proper security gates.
 
-That implementation uses a different tech stack (LangGraph + LangChain) but the architectural patterns are relevant.
+### Motivation
+
+The current admin assistant answers questions about the schema using
+its system prompt + schema context. It cannot execute queries, inspect live
+data, or make changes. MCP (Model Context Protocol) tools in VS Code demonstrate
+how powerful tool-equipped LLMs are — the same pattern should be available in
+the app itself.
+
+### Why Not MCP Directly?
+
+| Consideration | MCP Server | Native Tool-Use (Responses API) |
+|---------------|-----------|-------------------------------|
+| Designed for | IDE integration (VS Code, etc.) | Any application |
+| Transport | JSON-RPC over stdio/SSE | HTTP to Azure OpenAI |
+| Client library needed | Yes (Python MCP client) | No — built into SDK |
+| Security gates | Not built-in — your responsibility | Not built-in — your responsibility |
+| DB connection | Separate server process | Reuse existing pyodbc in `db.py` |
+| Tool definitions | MCP schema | OpenAI function schema (JSON) |
+| Dependency footprint | MCP SDK + server process | Zero new dependencies |
+
+**Decision:** Use **Azure OpenAI Responses API native tool-use** (function calling).
+The app already has direct DB access via pyodbc, and the Responses API supports
+`tools=` parameter natively — no extra protocol layer needed.
+
+### Architecture
+
+```
+User: "Add an index on FactOrders.OrderDateKey"
+                │
+                ▼
+    ┌───────────────────────────────────┐
+    │  LLM (Responses API + tools=[])   │
+    │  Sees: list_tables, describe_table│
+    │  run_read_query, run_write_query, │
+    │  run_ddl                          │
+    └───────────┬───────────────────────┘
+                │ returns tool_call:
+                │ run_ddl(sql="CREATE INDEX ...", explanation="...")
+                ▼
+    ┌───────────────────────────────────┐
+    │  Security Gate (core/tools.py)     │
+    │  Classify operation tier:          │
+    │    T0 (read) → auto-execute        │
+    │    T1 (write) → needs approval     │
+    │    T2 (DDL) → needs approval       │
+    │    T3 (destructive) → BLOCKED      │
+    └───────────┬───────────────────────┘
+                │
+        ┌───────┴──────────────────┐
+        │                          │
+   T0: auto                  T1/T2: approval needed
+        │                          │
+        ▼                          ▼
+   Execute via             Frontend shows confirmation
+   pyodbc, return          dialog (SQL + explanation +
+   result to LLM           impact warning)
+                                   │
+                              User: Approve / Reject
+                                   │
+                                   ▼
+                              Execute via pyodbc
+                              Return result to LLM
+                                   │
+                                   ▼
+                          LLM generates final
+                          response to user
+```
+
+### Security Tiers
+
+| Tier | Operations | Gate | Risk | Examples |
+|------|-----------|------|------|----------|
+| **T0: Free** | SELECT, SHOW, DESCRIBE, list_tables, describe_table | Auto-execute | None — read-only | "Show all tables", "Describe DimCustomer" |
+| **T1: Review** | INSERT, UPDATE (scoped) | Show SQL + Approve button | Low — data modification | "Insert a test customer", "Update product price" |
+| **T2: Approve** | DELETE (scoped), ALTER, CREATE INDEX | Show SQL + impact warning + Approve | Medium — schema/data change | "Drop index", "Add column to DimProduct" |
+| **T3: Blocked** | DROP TABLE, TRUNCATE, DROP DATABASE, xp_, sp_ | Hard block — never execute | Critical — irreversible | "Drop the customers table", "Truncate all facts" |
+
+### Tool Definitions
+
+```python
+ADMIN_TOOLS = [
+    {
+        "type": "function",
+        "name": "list_tables",
+        "description": "List all tables in the database with their schemas, row counts, and types",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "type": "function",
+        "name": "describe_table",
+        "description": "Show column names, data types, nullability, and constraints for a table",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "table_name": {
+                    "type": "string",
+                    "description": "Schema-qualified table name, e.g. dim.DimCustomer"
+                }
+            },
+            "required": ["table_name"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "run_read_query",
+        "description": "Execute a read-only SELECT query against the database",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "The SELECT query to execute"}
+            },
+            "required": ["sql"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "run_write_query",
+        "description": "Execute a data modification statement (INSERT, UPDATE, DELETE). "
+                       "Requires user approval before execution.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "The SQL write statement"},
+                "explanation": {
+                    "type": "string",
+                    "description": "Plain English explanation of what this will do and why"
+                }
+            },
+            "required": ["sql", "explanation"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "run_ddl",
+        "description": "Execute a DDL statement (CREATE INDEX, ALTER TABLE, CREATE VIEW). "
+                       "Requires user approval before execution.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "The DDL statement"},
+                "explanation": {
+                    "type": "string",
+                    "description": "What this changes in the schema and the expected impact"
+                }
+            },
+            "required": ["sql", "explanation"]
+        }
+    },
+]
+```
+
+### Conversation Flow (approval path)
+
+```
+Step 1 — User asks:
+    "Add an index on FactOrders for OrderDateKey to speed up date range queries"
+
+Step 2 — LLM responds with tool_call:
+    tool_call(run_ddl,
+        sql="CREATE NONCLUSTERED INDEX IX_FactOrders_OrderDateKey
+             ON fact.FactOrders(OrderDateKey)",
+        explanation="Creates a non-clustered index on the OrderDateKey column
+                    in FactOrders to improve date-range query performance")
+
+Step 3 — Backend classifies: DDL → Tier 2 → needs approval
+    API returns:
+    {
+        "pending_approval": true,
+        "approval_id": "abc-123",
+        "tool_name": "run_ddl",
+        "sql": "CREATE NONCLUSTERED INDEX ...",
+        "explanation": "Creates a non-clustered index ...",
+        "tier": "T2",
+        "warning": "This modifies the database schema."
+    }
+
+Step 4 — Frontend shows confirmation card:
+    ┌─────────────────────────────────────────────┐
+    │  ⚠️  Schema Change — Approval Required       │
+    ├─────────────────────────────────────────────┤
+    │  CREATE NONCLUSTERED INDEX                  │
+    │  IX_FactOrders_OrderDateKey                 │
+    │  ON fact.FactOrders(OrderDateKey)           │
+    ├─────────────────────────────────────────────┤
+    │  Creates a non-clustered index on the       │
+    │  OrderDateKey column to improve date-range  │
+    │  query performance.                         │
+    ├─────────────────────────────────────────────┤
+    │  [✅ Approve]         [❌ Reject]            │
+    └─────────────────────────────────────────────┘
+
+Step 5 — User clicks Approve
+    Frontend: POST /api/approve { "approval_id": "abc-123" }
+
+Step 6 — Backend executes via pyodbc, returns result to LLM
+
+Step 7 — LLM generates final response:
+    "Done. Index IX_FactOrders_OrderDateKey has been created on
+     fact.FactOrders(OrderDateKey). Date range queries on FactOrders
+     should now be significantly faster."
+```
+
+### Implementation Plan
+
+| Phase | What | Files | Risk |
+|-------|------|-------|------|
+| **Phase 1** | Read-only tools: `list_tables`, `describe_table`, `run_read_query` | `core/tools.py` (new), update `nl2sql.py` admin path | Zero — no writes |
+| **Phase 2** | Approval UI: frontend confirmation dialog + `/api/approve` endpoint | `api.py`, `App.tsx`, `App.css` | Zero — UI only |
+| **Phase 3** | Write tools: `run_write_query` with T1 gate | `core/tools.py`, `db.py` | Low — guarded by approval |
+| **Phase 4** | DDL tools: `run_ddl` with T2 gate + audit logging | `core/tools.py`, `core/audit.py` (new) | Medium — schema changes |
+
+### Phase 1 detail: Read-only tools
+
+The `admin_assist` mode currently calls `answer_admin()` which answers from
+context only. Phase 1 changes this to a **tool-use loop**:
+
+```python
+def answer_admin_with_tools(question, schema_context, history, model_key):
+    """Admin assistant with live database tools."""
+    messages = build_input(question, schema_context, history)
+
+    while True:
+        response = client.responses.create(
+            model=cfg["deployment"],
+            instructions=ADMIN_TOOL_PROMPT,
+            input=messages,
+            tools=ADMIN_TOOLS_READ_ONLY,
+            max_output_tokens=2048,
+        )
+
+        # If LLM returns text, we're done
+        if response.output_text:
+            return response.output_text, usage
+
+        # If LLM returns tool_calls, execute them and loop
+        for tool_call in response.output:
+            if tool_call.type == "function_call":
+                result = execute_tool(tool_call.name, tool_call.arguments)
+                messages.append(tool_call)  # the call
+                messages.append({"type": "function_call_output",
+                                 "call_id": tool_call.call_id,
+                                 "output": json.dumps(result)})
+        # Loop — LLM sees the tool results, may call more or respond
+```
+
+This is a standard **tool-use loop**. The LLM can call multiple tools in sequence
+(e.g., list_tables → describe_table → run_read_query) before composing its
+final answer.
+
+### Audit Logging (Phase 4)
+
+Every write/DDL operation gets logged:
+
+```python
+@dataclass
+class AuditEntry:
+    timestamp: datetime
+    user: str          # session_id for now, user identity later
+    tool: str          # "run_write_query" or "run_ddl"
+    sql: str           # the exact SQL executed
+    explanation: str   # LLM's explanation
+    tier: str          # T1, T2
+    approved: bool     # user approved?
+    result: str        # "success", "error: ...", or "rejected"
+    rows_affected: int # for writes
+```
+
+Store in a local SQLite file (`audit.db`) or a dedicated Azure SQL table.
+
+### Relationship to Agent Architecture
+
+This tool-use implementation is the natural **first agent** in the pipeline.
+The admin assistant with tools becomes an autonomous agent that:
+- Receives a goal (user question)
+- Plans which tools to call
+- Executes tools in a loop
+- Composes a response
+
+If the multi-agent refactor happens later, this becomes `AdminToolAgent` with
+zero code changes — the tool-use loop is already agent-shaped.
 
 ---
 
@@ -174,7 +451,7 @@ That implementation uses a different tech stack (LangGraph + LangChain) but the 
 | *(future)* `intent_agent.py` | Intent classification agent |
 | *(future)* `sql_agent.py` | SQL generation agent |
 | *(future)* `validator_agent.py` | SQL error correction agent |
-| *(future)* `admin_agent.py` | DB admin assistant agent |
+| *(future)* `admin_agent.py` | DB admin assistant agent with tools |
 | *(future)* `orchestrator.py` | Pipeline coordinator |
 
 ---

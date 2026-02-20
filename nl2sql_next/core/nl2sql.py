@@ -24,9 +24,11 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from openai import AzureOpenAI
@@ -36,6 +38,7 @@ from .schema import get_schema_context
 from .db import get_connection
 from .few_shots import format_few_shots
 from .router import classify
+from .tools import TOOLS_READ_ONLY, execute_tool
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(_ROOT, ".env"))
@@ -211,17 +214,47 @@ Guidelines:
 - If asked about relationships, reference the foreign keys.
 """
 
+ADMIN_TOOL_PROMPT = """\
+You are a knowledgeable Azure SQL Database administrator and assistant
+with access to live database tools.
+
+You have tools to:
+- list_tables: see all tables and views with row counts
+- describe_table: inspect column definitions, keys, and foreign keys
+- run_read_query: execute read-only SELECT queries for live data
+
+Guidelines:
+- Use your tools to inspect the live database when the user asks about
+  tables, columns, row counts, relationships, or data samples.
+- After calling tools, synthesise a clear answer using the results.
+- Be concise but thorough. Use markdown formatting.
+- Use the actual table/column names from the tool results.
+- When suggesting indexes or optimizations, be specific.
+- You may call multiple tools in sequence if needed.
+- Only use run_read_query for SELECT statements — never write queries.
+"""
+
+MAX_TOOL_ROUNDS = 6  # safety cap on tool-use loop iterations
+
 
 def answer_admin(question: str, schema_context: Optional[str] = None,
                  history: Optional[List[Dict[str, str]]] = None,
                  model_key: str = DEFAULT_MODEL) -> Tuple[str, Dict[str, int]]:
-    """Answer a schema/admin question directly from context (no SQL execution).
+    """Answer a schema/admin question using live database tools.
+
+    Uses the Responses API tool-use loop: the LLM can call tools (list_tables,
+    describe_table, run_read_query), receive results, and compose a final answer.
 
     Returns (answer_text, usage_dict).
     """
+    client = _get_client()
+    cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
+    usage_totals: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
     if schema_context is None:
         schema_context = get_schema_context()
 
+    # Build initial input
     parts: list[str] = [f"DATABASE SCHEMA:\n{schema_context}"]
     if history:
         parts.append("\nCONVERSATION HISTORY:")
@@ -233,8 +266,51 @@ def answer_admin(question: str, schema_context: Optional[str] = None,
                 parts.append(f"Answer: {h['answer'][:200]}")
     parts.append(f"\nQUESTION: {question}")
 
-    return _call_llm(ADMIN_PROMPT, "\n".join(parts),
-                     model_key=model_key, max_output_tokens=2048)
+    # Responses API expects `input` as a list of input items
+    input_items: List[Any] = [{"role": "user", "content": "\n".join(parts)}]
+
+    for _round in range(MAX_TOOL_ROUNDS):
+        kwargs: Dict[str, Any] = {
+            "model": cfg["deployment"],
+            "instructions": ADMIN_TOOL_PROMPT,
+            "input": input_items,
+            "tools": TOOLS_READ_ONLY,
+            "max_output_tokens": 2048,
+        }
+        if cfg["reasoning"]:
+            kwargs["reasoning"] = {"effort": cfg["reasoning"]}
+        else:
+            kwargs["temperature"] = 0
+
+        resp = client.responses.create(**kwargs)
+
+        # Accumulate usage
+        if resp.usage:
+            usage_totals["input_tokens"] += getattr(resp.usage, "input_tokens", 0)
+            usage_totals["output_tokens"] += getattr(resp.usage, "output_tokens", 0)
+            usage_totals["total_tokens"] += getattr(resp.usage, "total_tokens", 0)
+
+        # Check for tool calls in the response output
+        tool_calls = [item for item in resp.output
+                      if getattr(item, "type", None) == "function_call"]
+
+        if not tool_calls:
+            # No tool calls → LLM produced a text response, we're done
+            return resp.output_text or "", usage_totals
+
+        # Execute each tool call and feed results back
+        for tc in tool_calls:
+            tool_result = execute_tool(tc.name, tc.arguments)
+            input_items.append(tc)  # the function_call item
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": tc.call_id,
+                "output": tool_result,
+            })
+        # Loop — LLM will see tool results on next iteration
+
+    # Safety: exceeded max rounds — return whatever text we have
+    return resp.output_text or "(Tool loop reached maximum iterations)", usage_totals
 
 
 # ── SQL execution ───────────────────────────────────────
@@ -269,6 +345,15 @@ def _suggest_chart(question: str, columns: List[str],
 
     q = question.lower()
 
+    # ── Check for explicit chart type request ───────────
+    explicit_type: Optional[str] = None
+    if re.search(r"\bbar\s*chart\b", q):
+        explicit_type = "bar"
+    elif re.search(r"\bline\s*chart\b", q):
+        explicit_type = "line"
+    elif re.search(r"\bpie\s*chart\b", q):
+        explicit_type = "pie"
+
     # Detect time-series signals
     time_keywords = [
         "trend", "over time", "monthly", "daily", "weekly", "yearly",
@@ -300,7 +385,7 @@ def _suggest_chart(question: str, columns: List[str],
     for i, col in enumerate(columns):
         if i < len(rows[0]):
             val = rows[0][i]
-            if isinstance(val, (int, float)):
+            if isinstance(val, (int, float, Decimal)):
                 numeric_cols.append(col)
             else:
                 label_cols.append(col)
@@ -308,13 +393,27 @@ def _suggest_chart(question: str, columns: List[str],
     if not numeric_cols or not label_cols:
         return result
 
-    x_col = time_cols[0] if time_cols and time_cols[0] in label_cols + numeric_cols else label_cols[0]
-    y_col = numeric_cols[0]
+    # ── Pick x_col ──────────────────────────────────────
+    # Prefer a time column that exists as a label; fall back to first label
+    x_col = label_cols[0]
+    for tc in time_cols:
+        if tc in label_cols:
+            x_col = tc
+            break
+
+    # ── Pick y_col — skip time-like and id-like numeric columns ─────
+    skip_words = time_col_words + ["id", "key", "code", "flag"]
+    candidate_y = [c for c in numeric_cols
+                   if not any(w in c.lower() for w in skip_words)]
+    y_col = candidate_y[0] if candidate_y else numeric_cols[-1]
+
     result["x_col"] = x_col
     result["y_col"] = y_col
 
-    # Decision logic
-    if is_time:
+    # ── Decision logic ──────────────────────────────────
+    if explicit_type:
+        result["chart_type"] = explicit_type
+    elif is_time:
         result["chart_type"] = "line"
     elif is_proportion and len(rows) <= 8:
         result["chart_type"] = "pie"
