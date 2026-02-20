@@ -5,7 +5,7 @@ import os
 import struct
 
 import pyodbc
-from azure.identity import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 # Load .env from nl2sql_next root
@@ -20,7 +20,7 @@ AUTH_MODE = os.getenv("AZURE_SQL_AUTH", "entra").lower()
 def get_connection() -> pyodbc.Connection:
     """Return a pyodbc connection using Entra ID or SQL auth based on config."""
     if AUTH_MODE == "entra":
-        cred = AzureCliCredential()
+        cred = DefaultAzureCredential()
         tok = cred.get_token("https://database.windows.net/.default")
         tb = tok.token.encode("utf-16-le")
         ts = struct.pack(f"<I{len(tb)}s", len(tb), tb)

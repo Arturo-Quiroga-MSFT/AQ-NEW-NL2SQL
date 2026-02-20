@@ -3,9 +3,10 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 import "./App.css";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 /** Lightweight markdown→HTML for admin answers (headers, bold, bullets, code blocks). */
 function simpleMarkdown(md: string): string {
@@ -101,7 +102,7 @@ function ChartPanel({ chartType, columns, rows, xCol, yCol }: {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <PieChart>
-        <Pie data={data} dataKey={yCol} nameKey={xCol} cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+        <Pie data={data} dataKey={yCol} nameKey={xCol} cx="50%" cy="50%" outerRadius={100} label={(props: PieLabelRenderProps) => `${props.name ?? ""} ${((props.percent ?? 0) * 100).toFixed(0)}%`}>
           {data.map((_, i) => (
             <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
           ))}

@@ -12,8 +12,12 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 # Ensure nl2sql_next is importable
@@ -31,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static frontend (production build) ───────────────────
+_FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 
 # ── In-memory conversation store ────────────────────────
 _conversations: Dict[str, Conversation] = {}
@@ -248,3 +255,16 @@ def _serialize_rows(rows: List[list]) -> List[List[Any]]:
         return v
 
     return [[_conv(cell) for cell in row] for row in rows]
+
+
+# ── Serve frontend static files (must be AFTER all /api routes) ──
+if _FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=_FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        """Serve index.html for any non-API route (SPA catch-all)."""
+        file = _FRONTEND_DIST / full_path
+        if file.is_file():
+            return FileResponse(file)
+        return FileResponse(_FRONTEND_DIST / "index.html")

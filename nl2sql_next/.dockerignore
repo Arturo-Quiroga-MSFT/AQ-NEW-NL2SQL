@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+node_modules/
+frontend/node_modules/
+results/
+database/
+docs/
+test_schema.py
+cli.py
+.DS_Store
+.git/
+*.md
