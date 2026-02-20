@@ -7,7 +7,7 @@ Modes:
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 from openai import AzureOpenAI
 from dotenv import load_dotenv
@@ -51,8 +51,11 @@ def _get_client() -> AzureOpenAI:
     return _client
 
 
-def classify(question: str) -> str:
-    """Classify a question into a pipeline mode."""
+def classify(question: str) -> Tuple[str, Dict[str, int]]:
+    """Classify a question into a pipeline mode.
+
+    Returns (mode, usage_dict).
+    """
     client = _get_client()
     deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
 
@@ -65,8 +68,14 @@ def classify(question: str) -> str:
     )
     raw = (resp.output_text or "").strip().lower()
 
+    usage: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    if resp.usage:
+        usage["input_tokens"] = getattr(resp.usage, "input_tokens", 0)
+        usage["output_tokens"] = getattr(resp.usage, "output_tokens", 0)
+        usage["total_tokens"] = getattr(resp.usage, "total_tokens", 0)
+
     # Parse — be lenient
     for mode in MODES:
         if mode in raw:
-            return mode
-    return "data_query"  # default to SQL pipeline
+            return mode, usage
+    return "data_query", usage  # default to SQL pipeline

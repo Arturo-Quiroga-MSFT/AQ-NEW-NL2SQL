@@ -32,6 +32,10 @@ interface Message {
   answer?: string;
   error?: string | null;
   retries?: number;
+  elapsed_ms?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  tokens_total?: number;
 }
 
 const MODEL_OPTIONS = [
@@ -83,6 +87,10 @@ function App() {
           answer: data.answer,
           error: data.error,
           retries: data.retries,
+          elapsed_ms: data.elapsed_ms,
+          tokens_in: data.tokens_in,
+          tokens_out: data.tokens_out,
+          tokens_total: data.tokens_total,
         },
       ]);
     } catch (err) {
@@ -166,9 +174,14 @@ function App() {
           )}
         </div>
         <div className="header-desc">
-          <span className="mode-label data-pill">Data Query</span> Ask questions in plain English and get SQL + results from the RetailDW database.
-          &nbsp;&nbsp;
-          <span className="mode-label admin-pill">DB Assistant</span> Ask about schema, relationships, indexes, design, or best practices — answered directly, no SQL needed.
+          <div><span className="mode-label data-pill">Data Query</span> Ask questions in plain English and get SQL + results from the RetailDW database.</div>
+          <div><span className="mode-label admin-pill">DB Assistant</span> Ask about schema, relationships, indexes, design, or best practices — answered directly, no SQL needed.</div>
+          <div className="header-schema">
+            <strong>RetailDW</strong> — E-Commerce star schema &middot;
+            7 dimensions &middot; 5 fact tables &middot; 4 analytical views &middot;
+            ~21K rows &middot; 20 foreign keys &middot;
+            Orders, Returns, Reviews, Web Traffic, Inventory
+          </div>
         </div>
       </header>
 
@@ -282,6 +295,14 @@ function App() {
                       <div className="no-results">No results</div>
                     )}
                   </>
+                )}
+                {msg.elapsed_ms != null && msg.elapsed_ms > 0 && (
+                  <div className="stats-line">
+                    ⏱ {(msg.elapsed_ms / 1000).toFixed(1)}s
+                    {msg.tokens_total != null && msg.tokens_total > 0 && (
+                      <> &middot; tokens: {msg.tokens_in?.toLocaleString()} in / {msg.tokens_out?.toLocaleString()} out / {msg.tokens_total?.toLocaleString()} total</>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

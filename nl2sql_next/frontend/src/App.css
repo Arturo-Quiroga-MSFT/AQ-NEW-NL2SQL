@@ -32,6 +32,16 @@
   color: #aaa;
   line-height: 1.6;
 }
+.header-schema {
+  margin-top: 4px;
+  padding: 5px 10px;
+  background: #0d111766;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: #79c0ff;
+  letter-spacing: 0.2px;
+}
 .mode-label {
   font-size: 0.65rem;
   font-weight: 600;
@@ -264,6 +274,16 @@ tr:nth-child(even) { background: #1a1a3e; }
   margin-bottom: 2px;
 }
 .markdown-body { word-break: break-word; }
+
+/* Stats line */
+.stats-line {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #0f3460;
+  font-size: 0.7rem;
+  color: #666;
+  letter-spacing: 0.2px;
+}
 
 /* Loading dots */
 .loading-bubble { display: flex; gap: 6px; padding: 14px; }

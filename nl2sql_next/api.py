@@ -59,6 +59,10 @@ class AskResponse(BaseModel):
     answer: str  # admin_assist text answer (empty for data_query)
     error: Optional[str]
     retries: int
+    elapsed_ms: int = 0
+    tokens_in: int = 0
+    tokens_out: int = 0
+    tokens_total: int = 0
 
 
 class HistoryItem(BaseModel):
@@ -90,6 +94,10 @@ def api_ask(req: AskRequest):
         answer=result.get("answer", ""),
         error=result.get("error"),
         retries=result.get("retries", 0),
+        elapsed_ms=result.get("elapsed_ms", 0),
+        tokens_in=result.get("tokens_in", 0),
+        tokens_out=result.get("tokens_out", 0),
+        tokens_total=result.get("tokens_total", 0),
     )
 
 

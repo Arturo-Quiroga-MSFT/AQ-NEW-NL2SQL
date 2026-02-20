@@ -26,7 +26,8 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from openai import AzureOpenAI
 from dotenv import load_dotenv
@@ -66,8 +67,11 @@ def _get_client() -> AzureOpenAI:
 
 def _call_llm(instructions: str, user_input: str,
               model_key: str = DEFAULT_MODEL,
-              max_output_tokens: int = 1024) -> str:
-    """Unified LLM call — handles both standard and reasoning models."""
+              max_output_tokens: int = 1024) -> Tuple[str, Dict[str, int]]:
+    """Unified LLM call — handles both standard and reasoning models.
+
+    Returns (output_text, {"input_tokens": ..., "output_tokens": ..., "total_tokens": ...})
+    """
     client = _get_client()
     cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
 
@@ -85,7 +89,18 @@ def _call_llm(instructions: str, user_input: str,
         kwargs["temperature"] = 0
 
     resp = client.responses.create(**kwargs)
-    return resp.output_text or ""
+    usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    if resp.usage:
+        usage["input_tokens"] = getattr(resp.usage, "input_tokens", 0)
+        usage["output_tokens"] = getattr(resp.usage, "output_tokens", 0)
+        usage["total_tokens"] = getattr(resp.usage, "total_tokens", 0)
+    return resp.output_text or "", usage
+
+
+def _add_usage(totals: Dict[str, int], usage: Dict[str, int]) -> None:
+    """Accumulate token usage."""
+    for k in ("input_tokens", "output_tokens", "total_tokens"):
+        totals[k] = totals.get(k, 0) + usage.get(k, 0)
 
 
 SYSTEM_PROMPT = """\
@@ -133,8 +148,11 @@ def _is_safe(sql: str) -> bool:
 
 def generate_sql(question: str, schema_context: Optional[str] = None,
                  history: Optional[List[Dict[str, str]]] = None,
-                 model_key: str = DEFAULT_MODEL) -> str:
-    """Generate SQL from a natural language question (uses Responses API)."""
+                 model_key: str = DEFAULT_MODEL) -> Tuple[str, Dict[str, int]]:
+    """Generate SQL from a natural language question (uses Responses API).
+
+    Returns (sql, usage_dict).
+    """
     if schema_context is None:
         schema_context = get_schema_context()
 
@@ -151,15 +169,18 @@ def generate_sql(question: str, schema_context: Optional[str] = None,
     parts.append(f"\nQUESTION: {question}")
     user_input = "\n".join(parts)
 
-    raw = _call_llm(_build_system_prompt(), user_input,
-                    model_key=model_key, max_output_tokens=1024)
-    return _extract_sql(raw)
+    raw, usage = _call_llm(_build_system_prompt(), user_input,
+                           model_key=model_key, max_output_tokens=1024)
+    return _extract_sql(raw), usage
 
 
 def _generate_sql_fix(question: str, bad_sql: str, error_msg: str,
                       schema_context: str,
-                      model_key: str = DEFAULT_MODEL) -> str:
-    """Ask the LLM to fix a SQL query that failed execution."""
+                      model_key: str = DEFAULT_MODEL) -> Tuple[str, Dict[str, int]]:
+    """Ask the LLM to fix a SQL query that failed execution.
+
+    Returns (sql, usage_dict).
+    """
     fix_input = (
         f"SCHEMA:\n{schema_context}\n\n"
         f"QUESTION: {question}\n\n"
@@ -168,9 +189,9 @@ def _generate_sql_fix(question: str, bad_sql: str, error_msg: str,
         f"Generate a corrected SQL query. Return ONLY the SQL."
     )
 
-    raw = _call_llm(_build_system_prompt(), fix_input,
-                    model_key=model_key, max_output_tokens=1024)
-    return _extract_sql(raw)
+    raw, usage = _call_llm(_build_system_prompt(), fix_input,
+                           model_key=model_key, max_output_tokens=1024)
+    return _extract_sql(raw), usage
 
 
 # ── Admin assistant ─────────────────────────────────────
@@ -193,8 +214,11 @@ Guidelines:
 
 def answer_admin(question: str, schema_context: Optional[str] = None,
                  history: Optional[List[Dict[str, str]]] = None,
-                 model_key: str = DEFAULT_MODEL) -> str:
-    """Answer a schema/admin question directly from context (no SQL execution)."""
+                 model_key: str = DEFAULT_MODEL) -> Tuple[str, Dict[str, int]]:
+    """Answer a schema/admin question directly from context (no SQL execution).
+
+    Returns (answer_text, usage_dict).
+    """
     if schema_context is None:
         schema_context = get_schema_context()
 
@@ -225,14 +249,29 @@ def execute_sql(sql: str) -> Dict[str, Any]:
     return {"columns": columns, "rows": rows}
 
 
+def _make_stats(t0: float, tokens: Dict[str, int]) -> Dict[str, Any]:
+    """Build the stats dict from start time and accumulated tokens."""
+    return {
+        "elapsed_ms": round((time.perf_counter() - t0) * 1000),
+        "tokens_in": tokens.get("input_tokens", 0),
+        "tokens_out": tokens.get("output_tokens", 0),
+        "tokens_total": tokens.get("total_tokens", 0),
+    }
+
+
 # ── Public API ──────────────────────────────────────────
 
 def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
     """End-to-end: question → route → SQL pipeline or admin answer.
 
-    Returns dict with keys: question, mode, model, sql, columns, rows, answer, error, retries
+    Returns dict with keys: question, mode, model, sql, columns, rows, answer,
+    error, retries, elapsed_ms, tokens_in, tokens_out, tokens_total
     """
-    mode = classify(question)
+    t0 = time.perf_counter()
+    tokens: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+    mode, router_usage = classify(question)
+    _add_usage(tokens, router_usage)
 
     result: Dict[str, Any] = {
         "question": question, "mode": mode, "model": model_key, "sql": "",
@@ -243,20 +282,26 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
         schema_ctx = get_schema_context()
 
         if mode == "admin_assist":
-            result["answer"] = answer_admin(question, schema_ctx,
-                                            model_key=model_key)
+            answer_text, usage = answer_admin(question, schema_ctx,
+                                             model_key=model_key)
+            _add_usage(tokens, usage)
+            result["answer"] = answer_text
+            result.update(_make_stats(t0, tokens))
             return result
 
         # ── data_query path ──
-        sql = generate_sql(question, schema_ctx, model_key=model_key)
+        sql, usage = generate_sql(question, schema_ctx, model_key=model_key)
+        _add_usage(tokens, usage)
         result["sql"] = sql
 
         if sql.startswith("-- CANNOT_ANSWER"):
             result["error"] = sql
+            result.update(_make_stats(t0, tokens))
             return result
 
         if not _is_safe(sql):
             result["error"] = "Blocked: query contains disallowed statements"
+            result.update(_make_stats(t0, tokens))
             return result
 
         last_error = None
@@ -267,15 +312,18 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
                 result["columns"] = data["columns"]
                 result["rows"] = data["rows"]
                 result["retries"] = attempt
+                result.update(_make_stats(t0, tokens))
                 return result
             except Exception as exec_err:
                 last_error = str(exec_err)
                 if attempt < MAX_RETRIES:
-                    sql = _generate_sql_fix(question, sql, last_error, schema_ctx,
+                    sql, fix_usage = _generate_sql_fix(question, sql, last_error, schema_ctx,
                                             model_key=model_key)
+                    _add_usage(tokens, fix_usage)
                     if not _is_safe(sql):
                         result["error"] = "Blocked: corrected query contains disallowed statements"
                         result["sql"] = sql
+                        result.update(_make_stats(t0, tokens))
                         return result
 
         result["sql"] = sql
@@ -285,6 +333,7 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
     except Exception as e:
         result["error"] = str(e)
 
+    result.update(_make_stats(t0, tokens))
     return result
 
 
@@ -314,10 +363,14 @@ class Conversation:
 
     def ask(self, question: str, model_key: Optional[str] = None) -> Dict[str, Any]:
         """Ask a question with conversation context and intent routing."""
+        t0 = time.perf_counter()
+        tokens: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
         mk = model_key or self._model_key
         if mk not in MODEL_CONFIG:
             mk = DEFAULT_MODEL
-        mode = classify(question)
+        mode, router_usage = classify(question)
+        _add_usage(tokens, router_usage)
 
         result: Dict[str, Any] = {
             "question": question, "mode": mode, "model": mk, "sql": "",
@@ -328,26 +381,32 @@ class Conversation:
             schema_ctx = get_schema_context()
 
             if mode == "admin_assist":
-                result["answer"] = answer_admin(question, schema_ctx,
+                answer_text, usage = answer_admin(question, schema_ctx,
                                                 history=self._history,
                                                 model_key=mk)
+                _add_usage(tokens, usage)
+                result["answer"] = answer_text
                 self._history.append({"question": question,
                                       "answer": result["answer"][:300]})
                 if len(self._history) > self._max_history:
                     self._history = self._history[-self._max_history:]
+                result.update(_make_stats(t0, tokens))
                 return result
 
             # ── data_query path ──
-            sql = generate_sql(question, schema_ctx, history=self._history,
+            sql, usage = generate_sql(question, schema_ctx, history=self._history,
                                model_key=mk)
+            _add_usage(tokens, usage)
             result["sql"] = sql
 
             if sql.startswith("-- CANNOT_ANSWER"):
                 result["error"] = sql
+                result.update(_make_stats(t0, tokens))
                 return result
 
             if not _is_safe(sql):
                 result["error"] = "Blocked: query contains disallowed statements"
+                result.update(_make_stats(t0, tokens))
                 return result
 
             last_error = None
@@ -362,15 +421,18 @@ class Conversation:
                     self._history.append({"question": question, "sql": sql})
                     if len(self._history) > self._max_history:
                         self._history = self._history[-self._max_history:]
+                    result.update(_make_stats(t0, tokens))
                     return result
                 except Exception as exec_err:
                     last_error = str(exec_err)
                     if attempt < MAX_RETRIES:
-                        sql = _generate_sql_fix(question, sql, last_error, schema_ctx,
+                        sql, fix_usage = _generate_sql_fix(question, sql, last_error, schema_ctx,
                                                 model_key=mk)
+                        _add_usage(tokens, fix_usage)
                         if not _is_safe(sql):
                             result["error"] = "Blocked: corrected query contains disallowed statements"
                             result["sql"] = sql
+                            result.update(_make_stats(t0, tokens))
                             return result
 
             result["sql"] = sql
@@ -380,6 +442,7 @@ class Conversation:
         except Exception as e:
             result["error"] = str(e)
 
+        result.update(_make_stats(t0, tokens))
         return result
 
     def clear(self) -> None:

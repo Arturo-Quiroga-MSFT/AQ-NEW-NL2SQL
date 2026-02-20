@@ -136,6 +136,177 @@ nl2sql_next/
 
 **Relationships**: 20 foreign key constraints linking all fact tables to their dimensions.
 
+### Entity-Relationship diagram
+
+```mermaid
+erDiagram
+    %% ── Dimension tables ──────────────────────────
+    DimDate {
+        INT DateKey PK
+        DATE Date
+        INT Year
+        INT Quarter
+        INT Month
+        VARCHAR MonthName
+        INT DayOfWeek
+        VARCHAR DayName
+        BIT IsWeekend
+        BIT IsHoliday
+    }
+
+    DimCustomer {
+        INT CustomerKey PK
+        VARCHAR CustomerId
+        NVARCHAR FirstName
+        NVARCHAR LastName
+        VARCHAR Gender
+        VARCHAR AgeGroup
+        NVARCHAR City
+        NVARCHAR State
+        VARCHAR Region
+        VARCHAR MembershipTier
+        BIT IsActive
+    }
+
+    DimProduct {
+        INT ProductKey PK
+        VARCHAR ProductId
+        NVARCHAR ProductName
+        VARCHAR Category
+        VARCHAR Subcategory
+        NVARCHAR Brand
+        DECIMAL UnitCost
+        DECIMAL UnitPrice
+        BIT IsActive
+    }
+
+    DimStore {
+        INT StoreKey PK
+        VARCHAR StoreId
+        NVARCHAR StoreName
+        VARCHAR StoreType
+        NVARCHAR City
+        NVARCHAR State
+        VARCHAR Region
+    }
+
+    DimPromotion {
+        INT PromotionKey PK
+        VARCHAR PromotionId
+        NVARCHAR PromotionName
+        VARCHAR PromotionType
+        DECIMAL DiscountPercent
+        DATE StartDate
+        DATE EndDate
+    }
+
+    DimShippingMethod {
+        INT ShippingMethodKey PK
+        VARCHAR MethodName
+        VARCHAR CarrierName
+        INT AvgDeliveryDays
+        DECIMAL BaseCost
+    }
+
+    DimPaymentMethod {
+        INT PaymentMethodKey PK
+        VARCHAR MethodName
+        VARCHAR Provider
+    }
+
+    RefReturnReason {
+        INT ReturnReasonKey PK
+        VARCHAR ReasonCode
+        VARCHAR ReasonName
+    }
+
+    %% ── Fact tables ───────────────────────────────
+    FactOrders {
+        INT OrderLineKey PK
+        VARCHAR OrderId
+        INT LineNumber
+        INT Quantity
+        DECIMAL UnitPrice
+        DECIMAL DiscountAmount
+        DECIMAL ShippingCost
+        DECIMAL TaxAmount
+        DECIMAL LineTotal
+        DECIMAL LineCost
+        DECIMAL LineProfit
+        VARCHAR OrderStatus
+        BIT IsReturned
+    }
+
+    FactReturns {
+        INT ReturnKey PK
+        VARCHAR ReturnId
+        VARCHAR OrderId
+        INT Quantity
+        DECIMAL RefundAmount
+        VARCHAR ReturnStatus
+        BIT IsRefunded
+    }
+
+    FactCustomerReview {
+        INT ReviewKey PK
+        VARCHAR ReviewId
+        INT Rating
+        INT ReviewLength
+        INT HelpfulVotes
+        NVARCHAR ReviewTitle
+        BIT IsVerifiedPurchase
+        DECIMAL SentimentScore
+    }
+
+    FactWebTraffic {
+        INT SessionKey PK
+        VARCHAR SessionId
+        INT PageViews
+        INT SessionDurationSec
+        BIT BounceFlag
+        INT ProductsViewed
+        BIT ConvertedFlag
+        VARCHAR TrafficSource
+        VARCHAR DeviceType
+    }
+
+    FactInventory {
+        INT InventoryKey PK
+        INT QuantityOnHand
+        INT QuantityOnOrder
+        INT ReorderPoint
+        DECIMAL UnitCost
+        DECIMAL InventoryValue
+    }
+
+    %% ── Relationships (20 FKs) ───────────────────
+    DimCustomer  ||--o{ FactOrders          : "places"
+    DimProduct   ||--o{ FactOrders          : "ordered in"
+    DimDate      ||--o{ FactOrders          : "order date"
+    DimDate      ||--o{ FactOrders          : "ship date"
+    DimStore     ||--o{ FactOrders          : "sold at"
+    DimPromotion ||--o{ FactOrders          : "applied to"
+    DimShippingMethod ||--o{ FactOrders     : "shipped via"
+    DimPaymentMethod  ||--o{ FactOrders     : "paid with"
+
+    DimCustomer  ||--o{ FactReturns         : "returns"
+    DimProduct   ||--o{ FactReturns         : "returned item"
+    DimDate      ||--o{ FactReturns         : "return date"
+    DimStore     ||--o{ FactReturns         : "returned at"
+    RefReturnReason ||--o{ FactReturns      : "reason"
+
+    DimCustomer  ||--o{ FactCustomerReview  : "writes"
+    DimProduct   ||--o{ FactCustomerReview  : "reviewed"
+    DimDate      ||--o{ FactCustomerReview  : "review date"
+
+    DimCustomer  ||--o{ FactWebTraffic      : "visits"
+    DimDate      ||--o{ FactWebTraffic      : "visit date"
+
+    DimProduct   ||--o{ FactInventory       : "stocked"
+    DimStore     ||--o{ FactInventory       : "held at"
+    DimDate      ||--o{ FactInventory       : "snapshot date"
+```
+
 ## Getting started
 
 ```bash
