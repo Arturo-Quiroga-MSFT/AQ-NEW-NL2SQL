@@ -1,6 +1,8 @@
-"""NL2SQL chain — convert natural language to SQL and execute it.
+"""NL2SQL chain — convert natural language to SQL and execute it,
+or answer schema/admin questions directly.
 
 Features:
+- Intent routing: data queries vs. schema/admin questions
 - Few-shot examples for common query patterns
 - Error-correction loop (retries with error context on SQL failure)
 - Conversation memory (multi-turn follow-ups)
@@ -11,6 +13,9 @@ Usage:
 
     # Single-shot
     result = ask("What are the top 5 products by revenue?")
+
+    # Admin question
+    result = ask("What tables are in the database?")
 
     # Multi-turn
     conv = Conversation()
@@ -29,6 +34,7 @@ from dotenv import load_dotenv
 from .schema import get_schema_context
 from .db import get_connection
 from .few_shots import format_few_shots
+from .router import classify
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(_ROOT, ".env"))
@@ -107,7 +113,10 @@ def generate_sql(question: str, schema_context: Optional[str] = None,
         parts.append("\nCONVERSATION HISTORY:")
         for h in history:
             parts.append(f"User: {h['question']}")
-            parts.append(f"SQL: {h['sql']}")
+            if h.get("sql"):
+                parts.append(f"SQL: {h['sql']}")
+            elif h.get("answer"):
+                parts.append(f"Answer: {h['answer'][:200]}")
     parts.append(f"\nQUESTION: {question}")
     user_input = "\n".join(parts)
 
@@ -147,6 +156,56 @@ def _generate_sql_fix(question: str, bad_sql: str, error_msg: str,
     return _extract_sql(raw)
 
 
+# ── Admin assistant ─────────────────────────────────────
+
+ADMIN_PROMPT = """\
+You are a knowledgeable Azure SQL Database administrator and assistant.
+Given the database schema below, answer the user's question about the
+database structure, design, relationships, optimization, indexing,
+best practices, or general database management.
+
+Guidelines:
+- Be concise but thorough.
+- Use the actual table/column names from the schema.
+- When suggesting indexes or optimizations, be specific.
+- Format your answer with markdown (headers, bullet points, code blocks).
+- For schema descriptions, list columns with their types.
+- If asked about relationships, reference the foreign keys.
+"""
+
+
+def answer_admin(question: str, schema_context: Optional[str] = None,
+                 history: Optional[List[Dict[str, str]]] = None) -> str:
+    """Answer a schema/admin question directly from context (no SQL execution)."""
+    if schema_context is None:
+        schema_context = get_schema_context()
+
+    client = _get_client()
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
+
+    parts: list[str] = [f"DATABASE SCHEMA:\n{schema_context}"]
+    if history:
+        parts.append("\nCONVERSATION HISTORY:")
+        for h in history:
+            parts.append(f"User: {h['question']}")
+            if h.get("sql"):
+                parts.append(f"SQL: {h['sql']}")
+            elif h.get("answer"):
+                parts.append(f"Answer: {h['answer'][:200]}")
+    parts.append(f"\nQUESTION: {question}")
+
+    resp = client.responses.create(
+        model=deployment,
+        instructions=ADMIN_PROMPT,
+        input="\n".join(parts),
+        temperature=0,
+        max_output_tokens=2048,
+    )
+    return resp.output_text or ""
+
+
+# ── SQL execution ───────────────────────────────────────
+
 def execute_sql(sql: str) -> Dict[str, Any]:
     """Execute SQL and return columns + rows."""
     with get_connection() as conn:
@@ -157,18 +216,28 @@ def execute_sql(sql: str) -> Dict[str, Any]:
     return {"columns": columns, "rows": rows}
 
 
-def ask(question: str) -> Dict[str, Any]:
-    """End-to-end: question → SQL → execute → results (with error-correction).
+# ── Public API ──────────────────────────────────────────
 
-    Returns dict with keys: question, sql, columns, rows, error, retries
+def ask(question: str) -> Dict[str, Any]:
+    """End-to-end: question → route → SQL pipeline or admin answer.
+
+    Returns dict with keys: question, mode, sql, columns, rows, answer, error, retries
     """
+    mode = classify(question)
+
     result: Dict[str, Any] = {
-        "question": question, "sql": "", "columns": [], "rows": [],
-        "error": None, "retries": 0,
+        "question": question, "mode": mode, "sql": "", "columns": [],
+        "rows": [], "answer": "", "error": None, "retries": 0,
     }
 
     try:
         schema_ctx = get_schema_context()
+
+        if mode == "admin_assist":
+            result["answer"] = answer_admin(question, schema_ctx)
+            return result
+
+        # ── data_query path ──
         sql = generate_sql(question, schema_ctx)
         result["sql"] = sql
 
@@ -180,7 +249,6 @@ def ask(question: str) -> Dict[str, Any]:
             result["error"] = "Blocked: query contains disallowed statements"
             return result
 
-        # Try executing, with error-correction retries
         last_error = None
         for attempt in range(1 + MAX_RETRIES):
             try:
@@ -199,7 +267,6 @@ def ask(question: str) -> Dict[str, Any]:
                         result["sql"] = sql
                         return result
 
-        # All retries exhausted
         result["sql"] = sql
         result["error"] = f"SQL execution failed after {MAX_RETRIES} retries: {last_error}"
         result["retries"] = MAX_RETRIES
@@ -213,9 +280,8 @@ def ask(question: str) -> Dict[str, Any]:
 class Conversation:
     """Multi-turn NL2SQL conversation with memory.
 
-    Keeps track of previous question→SQL pairs so the LLM can handle
-    follow-up questions like "now filter by Clothing" or "show that as a
-    percentage".
+    Keeps track of previous question→SQL pairs and admin answers so the
+    LLM can handle follow-up questions in either mode.
     """
 
     def __init__(self, max_history: int = 10) -> None:
@@ -227,14 +293,27 @@ class Conversation:
         return list(self._history)
 
     def ask(self, question: str) -> Dict[str, Any]:
-        """Ask a question with conversation context."""
+        """Ask a question with conversation context and intent routing."""
+        mode = classify(question)
+
         result: Dict[str, Any] = {
-            "question": question, "sql": "", "columns": [], "rows": [],
-            "error": None, "retries": 0,
+            "question": question, "mode": mode, "sql": "", "columns": [],
+            "rows": [], "answer": "", "error": None, "retries": 0,
         }
 
         try:
             schema_ctx = get_schema_context()
+
+            if mode == "admin_assist":
+                result["answer"] = answer_admin(question, schema_ctx,
+                                                history=self._history)
+                self._history.append({"question": question,
+                                      "answer": result["answer"][:300]})
+                if len(self._history) > self._max_history:
+                    self._history = self._history[-self._max_history:]
+                return result
+
+            # ── data_query path ──
             sql = generate_sql(question, schema_ctx, history=self._history)
             result["sql"] = sql
 
@@ -255,7 +334,6 @@ class Conversation:
                     result["rows"] = data["rows"]
                     result["retries"] = attempt
 
-                    # Only add to history on success
                     self._history.append({"question": question, "sql": sql})
                     if len(self._history) > self._max_history:
                         self._history = self._history[-self._max_history:]

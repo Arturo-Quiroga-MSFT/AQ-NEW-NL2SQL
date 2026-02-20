@@ -3,12 +3,32 @@ import "./App.css";
 
 const API_BASE = "http://localhost:8000";
 
+/** Lightweight markdown→HTML for admin answers (headers, bold, bullets, code blocks). */
+function simpleMarkdown(md: string): string {
+  return md
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="sql-block">$2</pre>')
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/^### (.+)$/gm, "<h4>$1</h4>")
+    .replace(/^## (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^# (.+)$/gm, "<h2>$1</h2>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^\- (.+)$/gm, "<li>$1</li>")
+    .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
+    .replace(/\n{2,}/g, "<br/><br/>")
+    .replace(/\n/g, "<br/>");
+}
+
 interface Message {
   role: "user" | "assistant";
   question: string;
+  mode?: "data_query" | "admin_assist";
   sql?: string;
   columns?: string[];
   rows?: (string | number | null)[][];
+  answer?: string;
   error?: string | null;
   retries?: number;
 }
@@ -47,9 +67,11 @@ function App() {
         {
           role: "assistant",
           question: data.question,
+          mode: data.mode,
           sql: data.sql,
           columns: data.columns,
           rows: data.rows,
+          answer: data.answer,
           error: data.error,
           retries: data.retries,
         },
@@ -73,6 +95,43 @@ function App() {
     }
   };
 
+  const handleSaveChat = () => {
+    if (messages.length === 0) return;
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const lines: string[] = [`# NL2SQL Chat — ${new Date().toLocaleString()}\n`];
+
+    messages.forEach((msg) => {
+      if (msg.role === "user") {
+        lines.push(`## Q: ${msg.question}\n`);
+      } else if (msg.error) {
+        lines.push(`**Error:** ${msg.error}\n`);
+      } else if (msg.mode === "admin_assist") {
+        lines.push(msg.answer || "");
+        lines.push("");
+      } else {
+        lines.push("```sql");
+        lines.push(msg.sql || "");
+        lines.push("```\n");
+        if (msg.columns && msg.rows && msg.rows.length > 0) {
+          lines.push(`| ${msg.columns.join(" | ")} |`);
+          lines.push(`| ${msg.columns.map(() => "---").join(" | ")} |`);
+          msg.rows.forEach((row) => {
+            lines.push(`| ${row.map((c) => (c === null ? "NULL" : String(c))).join(" | ")} |`);
+          });
+          lines.push(`\n*${msg.rows.length} row${msg.rows.length !== 1 ? "s" : ""}*\n`);
+        }
+      }
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nl2sql-chat-${ts}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -81,6 +140,11 @@ function App() {
         <button className="new-btn" onClick={handleNewSession}>
           New Chat
         </button>
+        {messages.length > 0 && (
+          <button className="save-btn" onClick={handleSaveChat}>
+            Save Chat
+          </button>
+        )}
       </header>
 
       <main className="chat">
@@ -92,7 +156,8 @@ function App() {
                 "What are the top 5 products by revenue?",
                 "Show monthly sales for 2024",
                 "Which customers have the most returns?",
-                "What's the average order value by store?",
+                "What tables are in the database?",
+                "Describe the FactOrders table",
               ].map((q) => (
                 <button
                   key={q}
@@ -115,9 +180,14 @@ function App() {
             </div>
           ) : (
             <div key={i} className="msg assistant-msg">
-              <div className="bubble assistant-bubble">
+              <div className={`bubble assistant-bubble ${msg.mode === "admin_assist" ? "admin-bubble" : ""}`}>
                 {msg.error ? (
                   <div className="error">{msg.error}</div>
+                ) : msg.mode === "admin_assist" ? (
+                  <div className="admin-answer">
+                    <span className="mode-badge admin-badge">DB Assistant</span>
+                    <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.answer || "") }} />
+                  </div>
                 ) : (
                   <>
                     <button
@@ -187,7 +257,7 @@ function App() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a question about your data…"
+          placeholder="Ask about your data or database structure…"
           disabled={loading}
           autoFocus
         />

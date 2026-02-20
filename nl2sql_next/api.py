@@ -50,16 +50,19 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     session_id: str
     question: str
+    mode: str  # "data_query" or "admin_assist"
     sql: str
     columns: List[str]
     rows: List[List[Any]]
+    answer: str  # admin_assist text answer (empty for data_query)
     error: Optional[str]
     retries: int
 
 
 class HistoryItem(BaseModel):
     question: str
-    sql: str
+    sql: str = ""
+    answer: str = ""
 
 
 # ── Routes ──────────────────────────────────────────────
@@ -77,9 +80,11 @@ def api_ask(req: AskRequest):
     return AskResponse(
         session_id=session_id,
         question=result["question"],
+        mode=result.get("mode", "data_query"),
         sql=result["sql"],
         columns=result.get("columns", []),
         rows=rows,
+        answer=result.get("answer", ""),
         error=result.get("error"),
         retries=result.get("retries", 0),
     )
@@ -90,7 +95,14 @@ def api_history(session_id: str):
     """Get conversation history for a session."""
     if session_id not in _conversations:
         return []
-    return [HistoryItem(**h) for h in _conversations[session_id].history]
+    return [
+        HistoryItem(
+            question=h.get("question", ""),
+            sql=h.get("sql", ""),
+            answer=h.get("answer", ""),
+        )
+        for h in _conversations[session_id].history
+    ]
 
 
 @app.delete("/api/session/{session_id}")

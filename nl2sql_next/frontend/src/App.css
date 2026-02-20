@@ -32,6 +32,16 @@
   font-size: 0.8rem;
 }
 .new-btn:hover { background: #e94560; color: #fff; }
+.save-btn {
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #4ecca3;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.save-btn:hover { background: #4ecca3; color: #1a1a2e; }
 
 /* Chat area */
 .chat {
@@ -138,6 +148,43 @@ tr:nth-child(even) { background: #1a1a3e; }
 .null { color: #555; font-style: italic; }
 .no-results { color: #888; font-style: italic; }
 .error { color: #e94560; white-space: pre-wrap; }
+
+/* Admin assistant mode */
+.admin-bubble { border-color: #4ecca3; }
+.mode-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.admin-badge {
+  background: #4ecca322;
+  color: #4ecca3;
+  border: 1px solid #4ecca344;
+}
+.admin-answer { line-height: 1.6; }
+.admin-answer h2, .admin-answer h3, .admin-answer h4 {
+  margin-top: 10px;
+  margin-bottom: 4px;
+  color: #e0e0e0;
+}
+.admin-answer code {
+  background: #0d1117;
+  color: #79c0ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.admin-answer ul {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+.admin-answer li {
+  margin-bottom: 2px;
+}
+.markdown-body { word-break: break-word; }
 
 /* Loading dots */
 .loading-bubble { display: flex; gap: 6px; padding: 14px; }
