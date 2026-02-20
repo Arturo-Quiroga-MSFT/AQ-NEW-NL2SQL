@@ -21,47 +21,51 @@ on Azure SQL with Entra ID-only authentication.
 
 ## Architecture
 
-```
-User Question
-     │
-     ▼
-┌───────────────┐
-│ Intent Router │ ← gpt-4.1 classifier (≤20 tokens)
-│ (core/router) │   routes to data_query or admin_assist
-└──────┬────────┘
-       │
-       ├── admin_assist ──► Answer directly (no SQL)
-       │
-       ▼  data_query
-┌─────────────┐
-│ Schema Cache │ ← JSON cache of INFORMATION_SCHEMA + FKs + sample rows
-│ (24h TTL)    │   refreshed on demand via core/schema.py
-└──────┬──────┘
-       │ schema context (~12K chars)
-       ▼
-┌────────────────────────────┐
-│ Azure OpenAI               │ ← Responses API (instructions + input)
-│ gpt-4.1 / gpt-5.2         │   few-shot examples + conversation history
-│ (user-selectable via UI)   │   reasoning models use effort param
-└──────┬─────────────────────┘
-       │ raw SQL
-       ▼
-┌──────────────┐
-│ Safety Check │ ← blocks INSERT/UPDATE/DELETE/DROP/EXEC etc.
-└──────┬───────┘
-       │ validated SELECT
-       ▼
-┌──────────────────┐
-│ Azure SQL (Entra)│ ← pyodbc + AzureCliCredential token auth
-│ RetailDW         │
-└──────┬───────────┘
-       │ columns + rows      ↑ error?
-       ▼                     │ retry with error context (up to 2x)
-   Result dict ──────────────┘
+```mermaid
+flowchart TD
+    A["🗣️ User Question"] --> B{"🔀 Intent Router<br/><i>gpt-4.1 classifier ≤20 tokens</i>"}
 
-   Served via:
-   ├── FastAPI backend (:8000) — POST /api/ask with session management
-   └── React/Vite frontend (:5173) — dark chat UI with model selector
+    B -- "admin_assist" --> C["💬 DB Assistant<br/><i>Answer directly — no SQL</i>"]
+    B -- "data_query" --> D["📦 Schema Cache<br/><i>JSON · INFORMATION_SCHEMA + FKs + samples · 24h TTL</i>"]
+
+    D -- "~12K chars context" --> E["🤖 Azure OpenAI<br/><i>gpt-4.1 / gpt-5.2 (user-selectable)</i><br/><i>Responses API · few-shot · conversation history</i>"]
+
+    E -- "raw SQL" --> F{"🛡️ Safety Check<br/><i>blocks INSERT / UPDATE / DELETE / DROP / EXEC</i>"}
+
+    F -- "validated SELECT" --> G[("🗄️ Azure SQL · Entra ID<br/><b>RetailDW</b>")]
+
+    G -- "columns + rows" --> H["📊 Result"]
+    G -- "error?" --> I["🔄 Error-Correction Loop<br/><i>up to 2 retries with error context</i>"]
+    I --> E
+
+    C --> J["📤 Response"]
+    H --> J
+
+    style A fill:#0f3460,stroke:#e94560,color:#fff
+    style B fill:#16213e,stroke:#e94560,color:#e0e0e0
+    style C fill:#1a3a2a,stroke:#4ecca3,color:#4ecca3
+    style D fill:#16213e,stroke:#0f3460,color:#e0e0e0
+    style E fill:#1a1a3e,stroke:#79c0ff,color:#79c0ff
+    style F fill:#2a1a1a,stroke:#e94560,color:#e94560
+    style G fill:#0d1117,stroke:#0f3460,color:#79c0ff
+    style H fill:#16213e,stroke:#4ecca3,color:#4ecca3
+    style I fill:#2a2a1a,stroke:#f0c040,color:#f0c040
+    style J fill:#0f3460,stroke:#e94560,color:#fff
+```
+
+### Serving layer
+
+```mermaid
+flowchart LR
+    UI["⚛️ React / Vite<br/><i>:5173 · dark chat UI · model selector</i>"]
+    API["⚡ FastAPI<br/><i>:8000 · POST /api/ask · sessions</i>"]
+    CORE["🧠 core/<br/><i>nl2sql · router · schema</i>"]
+
+    UI -- "HTTP JSON" --> API --> CORE
+
+    style UI fill:#16213e,stroke:#79c0ff,color:#79c0ff
+    style API fill:#16213e,stroke:#e94560,color:#e94560
+    style CORE fill:#16213e,stroke:#4ecca3,color:#4ecca3
 ```
 
 ## Directory layout
