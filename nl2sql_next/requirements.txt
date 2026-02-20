@@ -1,0 +1,17 @@
+# Core pipeline
+openai
+pydantic>=2.0
+python-dotenv
+
+# Database
+pyodbc
+azure-identity
+
+# API
+fastapi
+uvicorn
+
+# Data generation (optional, for seeding)
+faker
+numpy
+pandas
