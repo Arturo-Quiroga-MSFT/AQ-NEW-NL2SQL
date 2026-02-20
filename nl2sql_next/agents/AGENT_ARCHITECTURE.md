@@ -231,9 +231,9 @@ User: "Add an index on FactOrders.OrderDateKey"
 
 | Tier | Operations | Gate | Risk | Examples |
 |------|-----------|------|------|----------|
-| **T0: Free** | SELECT, SHOW, DESCRIBE, list_tables, describe_table | Auto-execute | None — read-only | "Show all tables", "Describe DimCustomer" |
-| **T1: Review** | INSERT, UPDATE (scoped) | Show SQL + Approve button | Low — data modification | "Insert a test customer", "Update product price" |
-| **T2: Approve** | DELETE (scoped), ALTER, CREATE INDEX | Show SQL + impact warning + Approve | Medium — schema/data change | "Drop index", "Add column to DimProduct" |
+| **T0: Free** ✅ | SELECT, SHOW, DESCRIBE, list_tables, describe_table | Auto-execute | None — read-only | "Show all tables", "Describe DimCustomer" |
+| **T1: Review** ✅ | INSERT, UPDATE, DELETE (data modification) | Show SQL + Approve button | Low — data modification | "Insert a test customer", "Update product price" |
+| **T2: Approve** | ALTER, CREATE INDEX, CREATE VIEW (DDL) | Show SQL + impact warning + Approve | Medium — schema change | "Add index", "Add column to DimProduct" |
 | **T3: Blocked** | DROP TABLE, TRUNCATE, DROP DATABASE, xp_, sp_ | Hard block — never execute | Critical — irreversible | "Drop the customers table", "Truncate all facts" |
 
 ### Tool Definitions
@@ -365,48 +365,40 @@ Step 7 — LLM generates final response:
 
 | Phase | What | Files | Risk |
 |-------|------|-------|------|
-| **Phase 1** | Read-only tools: `list_tables`, `describe_table`, `run_read_query` | `core/tools.py` (new), update `nl2sql.py` admin path | Zero — no writes |
-| **Phase 2** | Approval UI: frontend confirmation dialog + `/api/approve` endpoint | `api.py`, `App.tsx`, `App.css` | Zero — UI only |
-| **Phase 3** | Write tools: `run_write_query` with T1 gate | `core/tools.py`, `db.py` | Low — guarded by approval |
+| **Phase 1** ✅ | Read-only tools: `list_tables`, `describe_table`, `run_read_query` | `core/tools.py` (new), update `nl2sql.py` admin path | Zero — no writes |
+| **Phase 2** ✅ | Approval UI: frontend confirmation dialog + `/api/approve` endpoint | `api.py`, `App.tsx`, `App.css` | Zero — UI only |
+| **Phase 3** ✅ | Write tools: `run_write_query` with T1 gate | `core/tools.py`, `db.py` | Low — guarded by approval |
 | **Phase 4** | DDL tools: `run_ddl` with T2 gate + audit logging | `core/tools.py`, `core/audit.py` (new) | Medium — schema changes |
+| **Phase 5** ✅ | Containerization + ACA deployment | `Dockerfile`, `.dockerignore`, `deploy-aca.sh`, `api.py` | Low — infra only |
 
-### Phase 1 detail: Read-only tools
+### Phases 1-3: Implementation Notes (completed)
 
-The `admin_assist` mode currently calls `answer_admin()` which answers from
-context only. Phase 1 changes this to a **tool-use loop**:
+Phases 1-3 are fully implemented. Key implementation details:
 
-```python
-def answer_admin_with_tools(question, schema_context, history, model_key):
-    """Admin assistant with live database tools."""
-    messages = build_input(question, schema_context, history)
+**Tool-use loop** (`core/nl2sql.py :: answer_admin()`):
+- Uses Azure OpenAI Responses API with `tools=TOOLS_ALL` parameter
+- Standard loop: call LLM → check for `function_call` items in `response.output` → execute tools → feed results back → repeat until text response
+- Returns 3-tuple: `(text, usage_dict, pending_approval_or_None)`
 
-    while True:
-        response = client.responses.create(
-            model=cfg["deployment"],
-            instructions=ADMIN_TOOL_PROMPT,
-            input=messages,
-            tools=ADMIN_TOOLS_READ_ONLY,
-            max_output_tokens=2048,
-        )
+**Mixed-batch handling**: When the LLM returns multiple tool calls in one response
+(e.g., a read + a write), safe tools (T0) execute immediately, and the loop pauses
+at the first approval-required tool (T1+). After approval/rejection, `resume_after_approval()`
+replays the pending state and continues the loop.
 
-        # If LLM returns text, we're done
-        if response.output_text:
-            return response.output_text, usage
+**Approval flow** (`api.py`):
+- `_pending_approvals: dict[str, dict]` — in-memory store keyed by UUID
+- `POST /api/approve` — accepts `{approval_id, approved}`, executes or rejects, returns LLM's final response
+- Frontend `ApprovalCard` component shows SQL + explanation + approve/reject buttons
 
-        # If LLM returns tool_calls, execute them and loop
-        for tool_call in response.output:
-            if tool_call.type == "function_call":
-                result = execute_tool(tool_call.name, tool_call.arguments)
-                messages.append(tool_call)  # the call
-                messages.append({"type": "function_call_output",
-                                 "call_id": tool_call.call_id,
-                                 "output": json.dumps(result)})
-        # Loop — LLM sees the tool results, may call more or respond
-```
+**Router fix**: `core/router.py` updated to classify INSERT/UPDATE/DELETE as `admin_assist`
+(previously misrouted to `data_query`).
 
-This is a standard **tool-use loop**. The LLM can call multiple tools in sequence
-(e.g., list_tables → describe_table → run_read_query) before composing its
-final answer.
+**Prompt strengthening**: Admin system prompt includes "CRITICAL RULE FOR WRITE OPERATIONS" —
+forces the LLM to always invoke `run_write_query` tool instead of asking for text-based confirmation.
+
+**Actual tool definitions** are in `core/tools.py :: TOOLS_ALL` (4 tools: `list_tables`,
+`describe_table`, `run_read_query`, `run_write_query`). Security classification is in
+`TOOL_TIERS` dict. `_is_write_dml()` validates SQL before executing writes.
 
 ### Audit Logging (Phase 4)
 
@@ -456,4 +448,20 @@ zero code changes — the tool-use loop is already agent-shaped.
 
 ---
 
-*Last updated: Feb 20, 2026*
+---
+
+## Deployment
+
+The entire application (FastAPI backend + React frontend) is containerized and
+deployed to **Azure Container Apps**. This is orthogonal to the agent architecture —
+whether the pipeline uses functions or agents, the deployment model is the same.
+
+See the main `README.md` for full containerization and ACA deployment details.
+
+- **Live URL**: `https://aq-nl2sql-next-app.orangegrass-878e4c2c.eastus2.azurecontainerapps.io`
+- **Auth**: System-assigned managed identity → `DefaultAzureCredential` → Azure SQL
+- **Secrets**: Azure OpenAI API key stored as ACA secret
+
+---
+
+*Last updated: Feb 21, 2026*
