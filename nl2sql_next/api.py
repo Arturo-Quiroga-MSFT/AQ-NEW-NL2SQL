@@ -63,6 +63,9 @@ class AskResponse(BaseModel):
     tokens_in: int = 0
     tokens_out: int = 0
     tokens_total: int = 0
+    chart_type: str = "none"  # "bar", "line", "pie", or "none"
+    x_col: str = ""
+    y_col: str = ""
 
 
 class HistoryItem(BaseModel):
@@ -98,6 +101,9 @@ def api_ask(req: AskRequest):
         tokens_in=result.get("tokens_in", 0),
         tokens_out=result.get("tokens_out", 0),
         tokens_total=result.get("tokens_total", 0),
+        chart_type=result.get("chart_type", "none"),
+        x_col=result.get("x_col", ""),
+        y_col=result.get("y_col", ""),
     )
 
 

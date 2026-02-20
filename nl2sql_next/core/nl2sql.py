@@ -259,6 +259,79 @@ def _make_stats(t0: float, tokens: Dict[str, int]) -> Dict[str, Any]:
     }
 
 
+def _suggest_chart(question: str, columns: List[str],
+                   rows: List[list]) -> Dict[str, str]:
+    """Heuristic chart suggestion based on question, columns, and result shape."""
+    result: Dict[str, str] = {"chart_type": "none", "x_col": "", "y_col": ""}
+
+    if not columns or not rows or len(rows) <= 1 or len(columns) < 2:
+        return result
+
+    q = question.lower()
+
+    # Detect time-series signals
+    time_keywords = [
+        "trend", "over time", "monthly", "daily", "weekly", "yearly",
+        "by month", "by year", "by quarter", "by date", "growth",
+        "progression", "history", "evolution",
+    ]
+    time_col_words = ["month", "year", "date", "quarter", "week", "day", "period"]
+    time_cols = [c for c in columns
+                 if any(w in c.lower() for w in time_col_words)]
+    is_time = any(k in q for k in time_keywords) or bool(time_cols)
+
+    # Detect comparison signals
+    compare_keywords = [
+        "compare", "top", "bottom", "most", "least", "highest", "lowest",
+        "best", "worst", "per", "by", "rank", "each",
+    ]
+    is_compare = any(k in q for k in compare_keywords)
+
+    # Detect proportion signals
+    proportion_keywords = [
+        "breakdown", "distribution", "proportion", "share", "percentage",
+        "split", "composition", "ratio", "mix",
+    ]
+    is_proportion = any(k in q for k in proportion_keywords)
+
+    # Classify columns as numeric vs label from first row
+    numeric_cols: List[str] = []
+    label_cols: List[str] = []
+    for i, col in enumerate(columns):
+        if i < len(rows[0]):
+            val = rows[0][i]
+            if isinstance(val, (int, float)):
+                numeric_cols.append(col)
+            else:
+                label_cols.append(col)
+
+    if not numeric_cols or not label_cols:
+        return result
+
+    x_col = time_cols[0] if time_cols and time_cols[0] in label_cols + numeric_cols else label_cols[0]
+    y_col = numeric_cols[0]
+    result["x_col"] = x_col
+    result["y_col"] = y_col
+
+    # Decision logic
+    if is_time:
+        result["chart_type"] = "line"
+    elif is_proportion and len(rows) <= 8:
+        result["chart_type"] = "pie"
+    elif is_compare or len(rows) <= 30:
+        result["chart_type"] = "bar"
+    elif len(rows) > 30:
+        result["chart_type"] = "line"
+    else:
+        result["chart_type"] = "bar"
+
+    # Override: too many slices for pie → bar
+    if result["chart_type"] == "pie" and len(rows) > 8:
+        result["chart_type"] = "bar"
+
+    return result
+
+
 # ── Public API ──────────────────────────────────────────
 
 def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
@@ -276,6 +349,7 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "question": question, "mode": mode, "model": model_key, "sql": "",
         "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
+        "chart_type": "none", "x_col": "", "y_col": "",
     }
 
     try:
@@ -312,6 +386,8 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
                 result["columns"] = data["columns"]
                 result["rows"] = data["rows"]
                 result["retries"] = attempt
+                chart = _suggest_chart(question, data["columns"], data["rows"])
+                result.update(chart)
                 result.update(_make_stats(t0, tokens))
                 return result
             except Exception as exec_err:
@@ -375,6 +451,7 @@ class Conversation:
         result: Dict[str, Any] = {
             "question": question, "mode": mode, "model": mk, "sql": "",
             "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
+            "chart_type": "none", "x_col": "", "y_col": "",
         }
 
         try:
@@ -417,6 +494,8 @@ class Conversation:
                     result["columns"] = data["columns"]
                     result["rows"] = data["rows"]
                     result["retries"] = attempt
+                    chart = _suggest_chart(question, data["columns"], data["rows"])
+                    result.update(chart)
 
                     self._history.append({"question": question, "sql": sql})
                     if len(self._history) > self._max_history:

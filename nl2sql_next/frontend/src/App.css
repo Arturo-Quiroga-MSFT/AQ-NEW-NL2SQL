@@ -182,6 +182,10 @@
   border: 1px solid #0f3460;
   border-bottom-left-radius: 4px;
 }
+.assistant-bubble:has(.chart-container) {
+  max-width: 95%;
+  width: 95%;
+}
 
 /* SQL toggle */
 .sql-toggle {
@@ -283,6 +287,36 @@ tr:nth-child(even) { background: #1a1a3e; }
   font-size: 0.7rem;
   color: #666;
   letter-spacing: 0.2px;
+}
+
+/* Chart toggle & container */
+.chart-toggle-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.chart-tab {
+  background: #0d1117;
+  color: #888;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.chart-tab:hover { border-color: #e94560; color: #e0e0e0; }
+.chart-tab-active {
+  background: #0f3460;
+  color: #e0e0e0;
+  border-color: #e94560;
+}
+.chart-container {
+  background: #0d1117;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 16px 12px 8px;
+  margin-bottom: 4px;
+  min-height: 320px;
 }
 
 /* Loading dots */

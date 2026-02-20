@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 import "./App.css";
 
 const API_BASE = "http://localhost:8000";
@@ -36,6 +40,70 @@ interface Message {
   tokens_in?: number;
   tokens_out?: number;
   tokens_total?: number;
+  chart_type?: "bar" | "line" | "pie" | "none";
+  x_col?: string;
+  y_col?: string;
+}
+
+const CHART_COLORS = ["#e94560", "#4ecca3", "#79c0ff", "#f5a623", "#bd93f9", "#ff79c6", "#50fa7b", "#ffb86c"];
+
+const TOOLTIP_STYLE = { background: "#16213e", border: "1px solid #0f3460", color: "#e0e0e0", borderRadius: 6, fontSize: "0.8rem" };
+
+function ChartPanel({ chartType, columns, rows, xCol, yCol }: {
+  chartType: "bar" | "line" | "pie";
+  columns: string[];
+  rows: (string | number | null)[][];
+  xCol: string;
+  yCol: string;
+}) {
+  const data = rows.map((row) => {
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj;
+  });
+
+  if (chartType === "bar") {
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#0f3460" />
+          <XAxis dataKey={xCol} tick={{ fill: "#aaa", fontSize: 11 }} interval={0} angle={data.length > 8 ? -35 : 0} textAnchor={data.length > 8 ? "end" : "middle"} height={data.length > 8 ? 80 : 40} />
+          <YAxis tick={{ fill: "#aaa", fontSize: 11 }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Bar dataKey={yCol} fill="#e94560" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (chartType === "line") {
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#0f3460" />
+          <XAxis dataKey={xCol} tick={{ fill: "#aaa", fontSize: 11 }} />
+          <YAxis tick={{ fill: "#aaa", fontSize: 11 }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Line type="monotone" dataKey={yCol} stroke="#4ecca3" strokeWidth={2} dot={{ fill: "#4ecca3", r: 4 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  // pie
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <PieChart>
+        <Pie data={data} dataKey={yCol} nameKey={xCol} cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Legend wrapperStyle={{ fontSize: "0.75rem", color: "#aaa" }} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
 }
 
 const MODEL_OPTIONS = [
@@ -51,6 +119,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [showSql, setShowSql] = useState<number | null>(null);
   const [model, setModel] = useState("gpt-4.1");
+  const [tableView, setTableView] = useState<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -91,6 +160,9 @@ function App() {
           tokens_in: data.tokens_in,
           tokens_out: data.tokens_out,
           tokens_total: data.tokens_total,
+          chart_type: data.chart_type,
+          x_col: data.x_col,
+          y_col: data.y_col,
         },
       ]);
     } catch (err) {
@@ -262,35 +334,61 @@ function App() {
                       <pre className="sql-block">{msg.sql}</pre>
                     )}
                     {msg.columns && msg.rows && msg.rows.length > 0 ? (
-                      <div className="table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              {msg.columns.map((c) => (
-                                <th key={c}>{c}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {msg.rows.map((row, ri) => (
-                              <tr key={ri}>
-                                {row.map((cell, ci) => (
-                                  <td key={ci}>
-                                    {cell === null ? (
-                                      <span className="null">NULL</span>
-                                    ) : (
-                                      String(cell)
-                                    )}
-                                  </td>
+                      <>
+                        {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && (
+                          <div className="chart-toggle-bar">
+                            <button
+                              className={`chart-tab ${!tableView.has(i) ? "chart-tab-active" : ""}`}
+                              onClick={() => setTableView((s) => { const n = new Set(s); n.delete(i); return n; })}
+                            >📊 Chart</button>
+                            <button
+                              className={`chart-tab ${tableView.has(i) ? "chart-tab-active" : ""}`}
+                              onClick={() => setTableView((s) => new Set(s).add(i))}
+                            >📋 Table</button>
+                          </div>
+                        )}
+                        {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && !tableView.has(i) ? (
+                          <div className="chart-container">
+                            <ChartPanel
+                              chartType={msg.chart_type as "bar" | "line" | "pie"}
+                              columns={msg.columns}
+                              rows={msg.rows}
+                              xCol={msg.x_col}
+                              yCol={msg.y_col}
+                            />
+                          </div>
+                        ) : (
+                          <div className="table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  {msg.columns.map((c) => (
+                                    <th key={c}>{c}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {msg.rows.map((row, ri) => (
+                                  <tr key={ri}>
+                                    {row.map((cell, ci) => (
+                                      <td key={ci}>
+                                        {cell === null ? (
+                                          <span className="null">NULL</span>
+                                        ) : (
+                                          String(cell)
+                                        )}
+                                      </td>
+                                    ))}
+                                  </tr>
                                 ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                         <div className="row-count">
                           {msg.rows.length} row{msg.rows.length !== 1 ? "s" : ""}
                         </div>
-                      </div>
+                      </>
                     ) : (
                       <div className="no-results">No results</div>
                     )}
