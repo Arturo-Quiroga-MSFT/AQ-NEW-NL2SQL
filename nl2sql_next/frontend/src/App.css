@@ -64,6 +64,28 @@
 }
 .save-btn:hover { background: #4ecca3; color: #1a1a2e; }
 
+/* Model selector */
+.model-select {
+  background: #0d1117;
+  color: #79c0ff;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  outline: none;
+}
+.model-select:hover,
+.model-select:focus { border-color: #e94560; }
+
+/* Model badge */
+.model-badge {
+  background: #79c0ff18;
+  color: #79c0ff;
+  border: 1px solid #79c0ff44;
+  margin-left: 6px;
+}
+
 /* Chat area */
 .chat {
   flex: 1;

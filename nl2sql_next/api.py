@@ -45,12 +45,14 @@ def _get_conv(session_id: str) -> Conversation:
 class AskRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
+    model: Optional[str] = None  # e.g. "gpt-4.1", "gpt-5.2-low", "gpt-5.2-medium"
 
 
 class AskResponse(BaseModel):
     session_id: str
     question: str
     mode: str  # "data_query" or "admin_assist"
+    model: str  # model key used for this response
     sql: str
     columns: List[str]
     rows: List[List[Any]]
@@ -72,7 +74,7 @@ def api_ask(req: AskRequest):
     """Ask a natural language question. Optionally pass session_id for multi-turn."""
     session_id = req.session_id or str(uuid.uuid4())
     conv = _get_conv(session_id)
-    result = conv.ask(req.question)
+    result = conv.ask(req.question, model_key=req.model)
 
     # Serialize Decimal/date values for JSON
     rows = _serialize_rows(result.get("rows", []))
@@ -81,6 +83,7 @@ def api_ask(req: AskRequest):
         session_id=session_id,
         question=result["question"],
         mode=result.get("mode", "data_query"),
+        model=result.get("model", "gpt-4.1"),
         sql=result["sql"],
         columns=result.get("columns", []),
         rows=rows,

@@ -8,6 +8,14 @@ A lightweight NL→SQL pipeline that converts plain-English questions into
 T-SQL queries and executes them against an Azure SQL database. No framework
 dependencies — just a prompt + Azure OpenAI Responses API + pyodbc.
 
+It also includes a **DB Assistant** mode that answers schema, design, and
+best-practice questions directly — without running any SQL.
+
+Users can switch between **three model options** from the UI:
+- **GPT-4.1** — fast, deterministic (temperature=0)
+- **GPT-5.2 (low reasoning)** — reasoning model with low effort
+- **GPT-5.2 (medium reasoning)** — reasoning model with medium effort
+
 The target database is **RetailDW**, an E-Commerce/Retail star schema hosted
 on Azure SQL with Entra ID-only authentication.
 
@@ -17,16 +25,25 @@ on Azure SQL with Entra ID-only authentication.
 User Question
      │
      ▼
+┌───────────────┐
+│ Intent Router │ ← gpt-4.1 classifier (≤20 tokens)
+│ (core/router) │   routes to data_query or admin_assist
+└──────┬────────┘
+       │
+       ├── admin_assist ──► Answer directly (no SQL)
+       │
+       ▼  data_query
 ┌─────────────┐
 │ Schema Cache │ ← JSON cache of INFORMATION_SCHEMA + FKs + sample rows
 │ (24h TTL)    │   refreshed on demand via core/schema.py
 └──────┬──────┘
        │ schema context (~12K chars)
        ▼
-┌──────────────────────┐
-│ Azure OpenAI gpt-4.1 │ ← Responses API (instructions + input)
-│ temperature=0        │   few-shot examples + conversation history
-└──────┬───────────────┘
+┌────────────────────────────┐
+│ Azure OpenAI               │ ← Responses API (instructions + input)
+│ gpt-4.1 / gpt-5.2         │   few-shot examples + conversation history
+│ (user-selectable via UI)   │   reasoning models use effort param
+└──────┬─────────────────────┘
        │ raw SQL
        ▼
 ┌──────────────┐
@@ -44,7 +61,7 @@ User Question
 
    Served via:
    ├── FastAPI backend (:8000) — POST /api/ask with session management
-   └── React/Vite frontend (:5173) — dark chat UI
+   └── React/Vite frontend (:5173) — dark chat UI with model selector
 ```
 
 ## Directory layout
@@ -61,7 +78,8 @@ nl2sql_next/
 │   ├── __init__.py
 │   ├── db.py             # Entra ID token-auth connection helper
 │   ├── schema.py         # Schema extractor + JSON cache + LLM context builder
-│   ├── nl2sql.py         # NL→SQL chain (Responses API → safety → execute)
+│   ├── nl2sql.py         # NL→SQL chain + admin assist + model selector
+│   ├── router.py         # Intent classifier (data_query vs admin_assist)
 │   └── few_shots.py      # 6 curated question→SQL examples for the prompt
 │
 ├── api.py                # FastAPI backend (POST /api/ask, sessions, health)
@@ -96,7 +114,7 @@ nl2sql_next/
 | **Database** | `RetailDW` (Gen5 Provisioned, 2 vCores) |
 | **Resource Group** | `rg-nl2sql-next` (Sweden Central) |
 | **Authentication** | Entra ID-only (MCAPS policy, no SQL auth) |
-| **Azure OpenAI** | `r2d2-foundry-001.openai.azure.com`, deployment `gpt-4.1` |
+| **Azure OpenAI** | `r2d2-foundry-001.openai.azure.com`, deployments: `gpt-4.1`, `gpt-5.2` |
 | **API** | Responses API (`api-version=2025-04-01-preview`) |
 
 ## Database schema (RetailDW)
@@ -177,6 +195,10 @@ print(result["columns"])   # ['CustomerId', 'FirstName', ...]
 print(result["rows"])      # [[...], [...], ...]
 print(result["error"])     # None if successful
 print(result["retries"])   # 0 if first attempt succeeded
+print(result["model"])     # 'gpt-4.1' (default)
+
+# Use a reasoning model
+result = ask("Complex analytical question", model_key="gpt-5.2-medium")
 
 # Multi-turn conversation
 from core.nl2sql import Conversation
@@ -185,6 +207,9 @@ conv = Conversation()
 r1 = conv.ask("Top 5 products by revenue")
 r2 = conv.ask("Now filter to Clothing only")    # uses conversation context
 r3 = conv.ask("Show that as a percentage of total")
+
+# Switch model mid-conversation
+r4 = conv.ask("Complex analysis query", model_key="gpt-5.2-low")
 ```
 
 ## Sample questions to try
@@ -235,15 +260,17 @@ r3 = conv.ask("Show that as a percentage of total")
 
 | Decision | Rationale |
 |----------|-----------|
-| **Simple chain, no framework** | ~150 lines core, zero overhead, easy to debug. LangGraph/MAF/Azure AI Agent overkill for single-turn NL2SQL. |
+| **Simple chain, no framework** | ~250 lines core, zero overhead, easy to debug. LangGraph/MAF/Azure AI Agent overkill for single-turn NL2SQL. |
 | **Responses API** (not Chat Completions) | Chat Completions being deprecated by Microsoft; Responses API is the forward path. |
+| **Multi-model support** | Users can select gpt-4.1 (fast) or gpt-5.2 reasoning models (low/medium effort) per question. Router always uses cheap gpt-4.1. |
+| **Intent routing** | Lightweight gpt-4.1 classifier (~20 tokens) routes to `data_query` or `admin_assist` mode before the main LLM call. |
 | **Few-shot prompting** | 6 curated question→SQL examples covering JOINs, CTEs, views, date filtering, aggregations. |
 | **Error-correction loop** | If SQL execution fails, the LLM gets the error and retries (up to 2x) before giving up. |
 | **Conversation memory** | `Conversation` class tracks previous Q→SQL pairs so follow-ups like "now filter by Clothing" work. |
 | **Entra ID-only auth** | MCAPS policy requires it. Token-based via `AzureCliCredential`. |
 | **Schema cache with TTL** | Avoids querying `INFORMATION_SCHEMA` on every request. 24h default, force-refresh available. |
 | **Safety guard** | Regex blocks destructive SQL (INSERT/UPDATE/DELETE/DROP/EXEC). Defense-in-depth with LLM instructions. |
-| **React/Vite + FastAPI** | Full-stack: FastAPI serves the NL2SQL API with session management; React chat UI with SQL viewer + data tables. |
+| **React/Vite + FastAPI** | Full-stack: FastAPI serves the NL2SQL API with session management; React chat UI with model selector, mode badges, SQL viewer + data tables. |
 
 ## Status
 
@@ -256,6 +283,9 @@ r3 = conv.ask("Show that as a percentage of total")
 | Seed data (~21K rows) | ✅ Done — via MSSQL MCP tools |
 | Schema extractor + cache | ✅ Done — core/schema.py |
 | NL2SQL chain (Responses API) | ✅ Done — core/nl2sql.py |
+| Intent routing (data_query / admin_assist) | ✅ Done — core/router.py |
+| DB Assistant mode | ✅ Done — schema, design & best-practice answers |
+| Multi-model selector (gpt-4.1 / gpt-5.2) | ✅ Done — UI dropdown + per-request model_key |
 | Interactive CLI | ✅ Done — cli.py |
 | End-to-end tested | ✅ Done — JOINs, aggregations, safety blocking |
 | Few-shot examples | ✅ Done — 6 curated patterns in core/few_shots.py |
@@ -263,4 +293,7 @@ r3 = conv.ask("Show that as a percentage of total")
 | Conversation memory | ✅ Done — Conversation class, multi-turn follow-ups |
 | FastAPI backend | ✅ Done — api.py (POST /api/ask, session management) |
 | React/Vite frontend | ✅ Done — frontend/ (dark chat UI, SQL viewer, data table) |
+| Model selector in UI | ✅ Done — dropdown: gpt-4.1, gpt-5.2-low, gpt-5.2-medium |
+| Mode badges | ✅ Done — red Data Query / green DB Assistant / blue model badge |
+| Welcome section with suggestions | ✅ Done — categorized example questions |
 | Containerization / ACA deploy | ⬜ Not started |

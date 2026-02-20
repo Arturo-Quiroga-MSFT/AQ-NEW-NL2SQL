@@ -25,6 +25,7 @@ interface Message {
   role: "user" | "assistant";
   question: string;
   mode?: "data_query" | "admin_assist";
+  model?: string;
   sql?: string;
   columns?: string[];
   rows?: (string | number | null)[][];
@@ -33,12 +34,19 @@ interface Message {
   retries?: number;
 }
 
+const MODEL_OPTIONS = [
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-5.2-low", label: "GPT-5.2 (low reasoning)" },
+  { value: "gpt-5.2-medium", label: "GPT-5.2 (medium reasoning)" },
+];
+
 function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSql, setShowSql] = useState<number | null>(null);
+  const [model, setModel] = useState("gpt-4.1");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,7 +66,7 @@ function App() {
       const res = await fetch(`${API_BASE}/api/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, session_id: sessionId }),
+        body: JSON.stringify({ question, session_id: sessionId, model }),
       });
       const data = await res.json();
       setSessionId(data.session_id);
@@ -68,6 +76,7 @@ function App() {
           role: "assistant",
           question: data.question,
           mode: data.mode,
+          model: data.model,
           sql: data.sql,
           columns: data.columns,
           rows: data.rows,
@@ -137,7 +146,16 @@ function App() {
       <header className="header">
         <div className="header-top">
           <h1>NL2SQL</h1>
-          <span className="subtitle">RetailDW &middot; Azure SQL &middot; gpt-4.1</span>
+          <span className="subtitle">RetailDW &middot; Azure SQL</span>
+          <select
+            className="model-select"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
+            {MODEL_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
           <button className="new-btn" onClick={handleNewSession}>
             New Chat
           </button>
@@ -213,11 +231,13 @@ function App() {
                 ) : msg.mode === "admin_assist" ? (
                   <div className="admin-answer">
                     <span className="mode-badge admin-badge">DB Assistant</span>
+                    {msg.model && <span className="mode-badge model-badge">{msg.model}</span>}
                     <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.answer || "") }} />
                   </div>
                 ) : (
                   <>
                     <span className="mode-badge query-badge">Data Query</span>
+                    {msg.model && <span className="mode-badge model-badge">{msg.model}</span>}
                     <button
                       className="sql-toggle"
                       onClick={() => setShowSql(showSql === i ? null : i)}

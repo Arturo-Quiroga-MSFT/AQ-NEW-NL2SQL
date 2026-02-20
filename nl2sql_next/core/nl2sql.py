@@ -43,6 +43,15 @@ _client: Optional[AzureOpenAI] = None
 
 MAX_RETRIES = 2  # number of error-correction retries
 
+# ── Model configuration ─────────────────────────────────
+# Maps user-facing model key → (deployment_name, reasoning_effort | None)
+MODEL_CONFIG: Dict[str, Dict[str, Any]] = {
+    "gpt-4.1":           {"deployment": "gpt-4.1",  "reasoning": None},
+    "gpt-5.2-low":       {"deployment": "gpt-5.2",  "reasoning": "low"},
+    "gpt-5.2-medium":    {"deployment": "gpt-5.2",  "reasoning": "medium"},
+}
+DEFAULT_MODEL = "gpt-4.1"
+
 
 def _get_client() -> AzureOpenAI:
     global _client
@@ -53,6 +62,30 @@ def _get_client() -> AzureOpenAI:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview"),
         )
     return _client
+
+
+def _call_llm(instructions: str, user_input: str,
+              model_key: str = DEFAULT_MODEL,
+              max_output_tokens: int = 1024) -> str:
+    """Unified LLM call — handles both standard and reasoning models."""
+    client = _get_client()
+    cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
+
+    kwargs: Dict[str, Any] = {
+        "model": cfg["deployment"],
+        "instructions": instructions,
+        "input": user_input,
+        "max_output_tokens": max_output_tokens,
+    }
+
+    if cfg["reasoning"]:
+        # Reasoning models: use reasoning param, no temperature
+        kwargs["reasoning"] = {"effort": cfg["reasoning"]}
+    else:
+        kwargs["temperature"] = 0
+
+    resp = client.responses.create(**kwargs)
+    return resp.output_text or ""
 
 
 SYSTEM_PROMPT = """\
@@ -99,13 +132,11 @@ def _is_safe(sql: str) -> bool:
 
 
 def generate_sql(question: str, schema_context: Optional[str] = None,
-                 history: Optional[List[Dict[str, str]]] = None) -> str:
+                 history: Optional[List[Dict[str, str]]] = None,
+                 model_key: str = DEFAULT_MODEL) -> str:
     """Generate SQL from a natural language question (uses Responses API)."""
     if schema_context is None:
         schema_context = get_schema_context()
-
-    client = _get_client()
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
 
     # Build input with optional conversation history
     parts: list[str] = [f"SCHEMA:\n{schema_context}"]
@@ -120,23 +151,15 @@ def generate_sql(question: str, schema_context: Optional[str] = None,
     parts.append(f"\nQUESTION: {question}")
     user_input = "\n".join(parts)
 
-    resp = client.responses.create(
-        model=deployment,
-        instructions=_build_system_prompt(),
-        input=user_input,
-        temperature=0,
-        max_output_tokens=1024,
-    )
-    raw = resp.output_text or ""
+    raw = _call_llm(_build_system_prompt(), user_input,
+                    model_key=model_key, max_output_tokens=1024)
     return _extract_sql(raw)
 
 
 def _generate_sql_fix(question: str, bad_sql: str, error_msg: str,
-                      schema_context: str) -> str:
+                      schema_context: str,
+                      model_key: str = DEFAULT_MODEL) -> str:
     """Ask the LLM to fix a SQL query that failed execution."""
-    client = _get_client()
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
-
     fix_input = (
         f"SCHEMA:\n{schema_context}\n\n"
         f"QUESTION: {question}\n\n"
@@ -145,14 +168,8 @@ def _generate_sql_fix(question: str, bad_sql: str, error_msg: str,
         f"Generate a corrected SQL query. Return ONLY the SQL."
     )
 
-    resp = client.responses.create(
-        model=deployment,
-        instructions=_build_system_prompt(),
-        input=fix_input,
-        temperature=0,
-        max_output_tokens=1024,
-    )
-    raw = resp.output_text or ""
+    raw = _call_llm(_build_system_prompt(), fix_input,
+                    model_key=model_key, max_output_tokens=1024)
     return _extract_sql(raw)
 
 
@@ -175,13 +192,11 @@ Guidelines:
 
 
 def answer_admin(question: str, schema_context: Optional[str] = None,
-                 history: Optional[List[Dict[str, str]]] = None) -> str:
+                 history: Optional[List[Dict[str, str]]] = None,
+                 model_key: str = DEFAULT_MODEL) -> str:
     """Answer a schema/admin question directly from context (no SQL execution)."""
     if schema_context is None:
         schema_context = get_schema_context()
-
-    client = _get_client()
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")
 
     parts: list[str] = [f"DATABASE SCHEMA:\n{schema_context}"]
     if history:
@@ -194,14 +209,8 @@ def answer_admin(question: str, schema_context: Optional[str] = None,
                 parts.append(f"Answer: {h['answer'][:200]}")
     parts.append(f"\nQUESTION: {question}")
 
-    resp = client.responses.create(
-        model=deployment,
-        instructions=ADMIN_PROMPT,
-        input="\n".join(parts),
-        temperature=0,
-        max_output_tokens=2048,
-    )
-    return resp.output_text or ""
+    return _call_llm(ADMIN_PROMPT, "\n".join(parts),
+                     model_key=model_key, max_output_tokens=2048)
 
 
 # ── SQL execution ───────────────────────────────────────
@@ -218,27 +227,28 @@ def execute_sql(sql: str) -> Dict[str, Any]:
 
 # ── Public API ──────────────────────────────────────────
 
-def ask(question: str) -> Dict[str, Any]:
+def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
     """End-to-end: question → route → SQL pipeline or admin answer.
 
-    Returns dict with keys: question, mode, sql, columns, rows, answer, error, retries
+    Returns dict with keys: question, mode, model, sql, columns, rows, answer, error, retries
     """
     mode = classify(question)
 
     result: Dict[str, Any] = {
-        "question": question, "mode": mode, "sql": "", "columns": [],
-        "rows": [], "answer": "", "error": None, "retries": 0,
+        "question": question, "mode": mode, "model": model_key, "sql": "",
+        "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
     }
 
     try:
         schema_ctx = get_schema_context()
 
         if mode == "admin_assist":
-            result["answer"] = answer_admin(question, schema_ctx)
+            result["answer"] = answer_admin(question, schema_ctx,
+                                            model_key=model_key)
             return result
 
         # ── data_query path ──
-        sql = generate_sql(question, schema_ctx)
+        sql = generate_sql(question, schema_ctx, model_key=model_key)
         result["sql"] = sql
 
         if sql.startswith("-- CANNOT_ANSWER"):
@@ -261,7 +271,8 @@ def ask(question: str) -> Dict[str, Any]:
             except Exception as exec_err:
                 last_error = str(exec_err)
                 if attempt < MAX_RETRIES:
-                    sql = _generate_sql_fix(question, sql, last_error, schema_ctx)
+                    sql = _generate_sql_fix(question, sql, last_error, schema_ctx,
+                                            model_key=model_key)
                     if not _is_safe(sql):
                         result["error"] = "Blocked: corrected query contains disallowed statements"
                         result["sql"] = sql
@@ -287,18 +298,30 @@ class Conversation:
     def __init__(self, max_history: int = 10) -> None:
         self._history: List[Dict[str, str]] = []
         self._max_history = max_history
+        self._model_key: str = DEFAULT_MODEL
+
+    @property
+    def model_key(self) -> str:
+        return self._model_key
+
+    @model_key.setter
+    def model_key(self, value: str) -> None:
+        self._model_key = value if value in MODEL_CONFIG else DEFAULT_MODEL
 
     @property
     def history(self) -> List[Dict[str, str]]:
         return list(self._history)
 
-    def ask(self, question: str) -> Dict[str, Any]:
+    def ask(self, question: str, model_key: Optional[str] = None) -> Dict[str, Any]:
         """Ask a question with conversation context and intent routing."""
+        mk = model_key or self._model_key
+        if mk not in MODEL_CONFIG:
+            mk = DEFAULT_MODEL
         mode = classify(question)
 
         result: Dict[str, Any] = {
-            "question": question, "mode": mode, "sql": "", "columns": [],
-            "rows": [], "answer": "", "error": None, "retries": 0,
+            "question": question, "mode": mode, "model": mk, "sql": "",
+            "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
         }
 
         try:
@@ -306,7 +329,8 @@ class Conversation:
 
             if mode == "admin_assist":
                 result["answer"] = answer_admin(question, schema_ctx,
-                                                history=self._history)
+                                                history=self._history,
+                                                model_key=mk)
                 self._history.append({"question": question,
                                       "answer": result["answer"][:300]})
                 if len(self._history) > self._max_history:
@@ -314,7 +338,8 @@ class Conversation:
                 return result
 
             # ── data_query path ──
-            sql = generate_sql(question, schema_ctx, history=self._history)
+            sql = generate_sql(question, schema_ctx, history=self._history,
+                               model_key=mk)
             result["sql"] = sql
 
             if sql.startswith("-- CANNOT_ANSWER"):
@@ -341,7 +366,8 @@ class Conversation:
                 except Exception as exec_err:
                     last_error = str(exec_err)
                     if attempt < MAX_RETRIES:
-                        sql = _generate_sql_fix(question, sql, last_error, schema_ctx)
+                        sql = _generate_sql_fix(question, sql, last_error, schema_ctx,
+                                                model_key=mk)
                         if not _is_safe(sql):
                             result["error"] = "Blocked: corrected query contains disallowed statements"
                             result["sql"] = sql
