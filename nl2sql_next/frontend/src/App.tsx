@@ -466,8 +466,9 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="header-top">
+          <img src="/microsoft-logo.svg" alt="Microsoft" className="ms-logo" />
           <h1>NL2SQL</h1>
-          <span className="subtitle">RetailDW &middot; Azure SQL</span>
+          <span className="subtitle">Natural Language to SQL &middot; Azure OpenAI</span>
           <select
             className="model-select"
             value={model}
@@ -486,61 +487,66 @@ function App() {
             </button>
           )}
         </div>
-        <div className="header-desc">
-          <div><span className="mode-label data-pill">Data Query</span> Ask questions in plain English and get SQL + results from the RetailDW database.</div>
-          <div><span className="mode-label admin-pill">DB Assistant</span> Ask about schema, relationships, indexes, design, or best practices — answered directly, no SQL needed.</div>
-          <div className="header-schema">
+      </header>
+
+      <main className="chat">
+        <div className="welcome">
+          <h2 className="welcome-headline">Your AI-Powered Database Assistant</h2>
+          <p className="welcome-sub">
+            Talk to your database in plain English. Ask complex analytical questions, explore your schema, 
+            or manage administrative tasks — powered by Azure OpenAI with built-in safety guardrails.
+          </p>
+
+          <div className="feature-cards">
+            <div className="feature-card feature-card-data">
+              <div className="feature-icon">📊</div>
+              <h3 className="feature-title">Data Insights</h3>
+              <p className="feature-desc">
+                Ask questions in plain English and get instant SQL queries, result tables, and interactive charts 
+                from your database. Multi-turn conversations let you drill down and refine results.
+              </p>
+              <div className="feature-examples">
+                {[
+                  "What are the top 5 products by revenue?",
+                  "Show monthly sales for 2024",
+                  "Which customers have the most returns?",
+                  "Average order value by store",
+                ].map((q) => (
+                  <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="feature-card feature-card-admin">
+              <div className="feature-icon">🛠️</div>
+              <h3 className="feature-title">DB Administration</h3>
+              <p className="feature-desc">
+                Explore schema details, check relationships, get index recommendations, and execute admin 
+                operations — with approval safeguards for any write actions.
+              </p>
+              <div className="feature-examples">
+                {[
+                  "What tables are in the database?",
+                  "Describe the DimCustomer table",
+                  "How are orders related to products?",
+                  "Suggest indexes for FactOrders",
+                ].map((q) => (
+                  <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="welcome-schema">
             <strong>RetailDW</strong> — E-Commerce star schema &middot;
             7 dimensions &middot; 5 fact tables &middot; 4 analytical views &middot;
             ~21K rows &middot; 20 foreign keys &middot;
             Orders, Returns, Reviews, Web Traffic, Inventory
           </div>
-        </div>
-      </header>
 
-      <main className="chat">
-        <div className="welcome">
-          <p className="welcome-title">Ask anything about the RetailDW database in plain English</p>
-          <p className="welcome-sub">Query your data, explore the schema, or get DBA advice — all in one chat.</p>
-
-          <div className="suggestion-group">
-            <span className="sg-label data-pill">Data Queries</span>
-            <div className="suggestions">
-              {[
-                "What are the top 5 products by revenue?",
-                "Show monthly sales for 2024",
-                "Which customers have the most returns?",
-                "Average order value by store",
-              ].map((q) => (
-                <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="suggestion-group">
-            <span className="sg-label admin-pill">Schema &amp; DB Assistant</span>
-            <div className="suggestions">
-              {[
-                "What tables are in the database?",
-                "Describe the DimCustomer table",
-                "How are orders related to products?",
-                "Suggest indexes for FactOrders",
-              ].map((q) => (
-                <button key={q} className="suggestion" onClick={() => setInput(q)}>{q}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="suggestion-group">
-            <span className="sg-label feat-pill">Follow-ups &amp; Multi-turn</span>
-            <div className="suggestions">
-              {[
-                "Show monthly sales for 2024  →  now for 2025",
-                "Top 10 products  →  filter by Clothing",
-              ].map((q) => (
-                <button key={q} className="suggestion suggestion-hint" disabled>{q}</button>
-              ))}
-            </div>
+          <div className="welcome-hint">
+            <span className="feat-pill" style={{fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Multi-turn</span>
+            <span className="welcome-hint-text">Ask a follow-up to refine any answer — e.g. "now filter by Clothing" or "show that as a chart"</span>
           </div>
         </div>
 
