@@ -30,12 +30,18 @@ admin_assist — The user is asking ABOUT the database itself, its schema, desig
   advice on database management, optimization, indexing, or general explanations.
   ALSO use this category for any DATA MODIFICATION request: INSERT, UPDATE, DELETE,
   adding rows, removing rows, changing values, or any write operation.
+  ALSO use this category for META-QUESTIONS: requests for sample questions, examples of
+  what to ask, suggestions for queries, capabilities of the assistant, or any question
+  that is ABOUT querying rather than an actual data retrieval request.
   Examples: "what tables are in the database?", "describe the DimCustomer table",
   "how are orders related to products?", "what indexes should I add?",
   "explain the star schema", "what's the partition key?", "how many columns in FactOrders?",
   "suggest improvements to the schema", "what are best practices for this schema?",
   "delete the Cryptocurrency payment method", "add a new store", "insert a row",
-  "update customer 5's email", "remove the test product"
+  "update customer 5's email", "remove the test product",
+  "show me sample questions", "what tough questions can I ask?",
+  "give me examples of queries that use joins", "what can you do?",
+  "suggest some interesting questions to explore", "what kind of questions can I ask?"
 
 Respond with ONLY the category name: data_query or admin_assist
 """
