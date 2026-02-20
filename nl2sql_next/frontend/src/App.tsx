@@ -182,7 +182,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [showSql, setShowSql] = useState<number | null>(null);
   const [model, setModel] = useState("gpt-4.1");
-  const [tableView, setTableView] = useState<Set<number>>(new Set());
+  const [chartView, setChartView] = useState<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -198,46 +198,180 @@ function App() {
     setMessages((prev) => [...prev, { role: "user", question }]);
     setLoading(true);
 
+    // Add placeholder assistant message for streaming
+    const assistantIdx = messages.length + 1; // index after user msg
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        question,
+        answer: "",
+        mode: undefined,
+        model: undefined,
+        sql: "",
+        columns: [],
+        rows: [],
+        error: null,
+        elapsed_ms: 0,
+        tokens_in: 0,
+        tokens_out: 0,
+        tokens_total: 0,
+      },
+    ]);
+
     try {
-      const res = await fetch(`${API_BASE}/api/ask`, {
+      const res = await fetch(`${API_BASE}/api/ask/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, session_id: sessionId, model }),
       });
-      const data = await res.json();
-      setSessionId(data.session_id);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          question: data.question,
-          mode: data.mode,
-          model: data.model,
-          sql: data.sql,
-          columns: data.columns,
-          rows: data.rows,
-          answer: data.answer,
-          error: data.error,
-          retries: data.retries,
-          elapsed_ms: data.elapsed_ms,
-          tokens_in: data.tokens_in,
-          tokens_out: data.tokens_out,
-          tokens_total: data.tokens_total,
-          chart_type: data.chart_type,
-          x_col: data.x_col,
-          y_col: data.y_col,
-          approval_id: data.approval_id,
-          approval_tool: data.approval_tool,
-          approval_sql: data.approval_sql,
-          approval_explanation: data.approval_explanation,
-          approval_status: data.approval_id ? "pending" : undefined,
-        },
-      ]);
+
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6);
+          if (!jsonStr) continue;
+
+          let evt: Record<string, unknown>;
+          try {
+            evt = JSON.parse(jsonStr);
+          } catch {
+            continue;
+          }
+
+          const evtType = evt.type as string;
+
+          if (evtType === "start") {
+            const sid = evt.session_id as string;
+            if (sid) setSessionId(sid);
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? { ...m, mode: evt.mode as Message["mode"], model: evt.model as string }
+                  : m
+              )
+            );
+          } else if (evtType === "delta") {
+            const text = evt.text as string;
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? { ...m, answer: (m.answer || "") + text }
+                  : m
+              )
+            );
+          } else if (evtType === "tool_start") {
+            // Show tool activity indicator in the answer
+            const toolName = evt.name as string;
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? { ...m, answer: (m.answer || "") + `\n\n*Calling ${toolName}…*\n\n` }
+                  : m
+              )
+            );
+          } else if (evtType === "tool_done") {
+            // Tool completed — strip the "Calling..." indicator and continue
+            setMessages((prev) =>
+              prev.map((m, i) => {
+                if (i !== assistantIdx) return m;
+                // Remove the trailing "Calling tool..." line for cleaner output
+                const cleaned = (m.answer || "").replace(/\n\n\*Calling \w+…\*\n\n$/, "\n\n");
+                return { ...m, answer: cleaned };
+              })
+            );
+          } else if (evtType === "approval") {
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? {
+                      ...m,
+                      mode: "admin_assist" as const,
+                      approval_id: evt.approval_id as string,
+                      approval_tool: evt.approval_tool as string,
+                      approval_sql: evt.approval_sql as string,
+                      approval_explanation: evt.approval_explanation as string,
+                      approval_status: "pending" as const,
+                    }
+                  : m
+              )
+            );
+          } else if (evtType === "done") {
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? {
+                      ...m,
+                      elapsed_ms: evt.elapsed_ms as number,
+                      tokens_in: evt.tokens_in as number,
+                      tokens_out: evt.tokens_out as number,
+                      tokens_total: evt.tokens_total as number,
+                    }
+                  : m
+              )
+            );
+          } else if (evtType === "full_response") {
+            // Non-streaming data_query response — arrived as single event
+            const sid = evt.session_id as string;
+            if (sid) setSessionId(sid);
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? {
+                      ...m,
+                      mode: evt.mode as Message["mode"],
+                      model: evt.model as string,
+                      sql: evt.sql as string,
+                      columns: evt.columns as string[],
+                      rows: evt.rows as (string | number | null)[][],
+                      answer: evt.answer as string,
+                      error: evt.error as string | null,
+                      retries: evt.retries as number,
+                      elapsed_ms: evt.elapsed_ms as number,
+                      tokens_in: evt.tokens_in as number,
+                      tokens_out: evt.tokens_out as number,
+                      tokens_total: evt.tokens_total as number,
+                      chart_type: evt.chart_type as Message["chart_type"],
+                      x_col: evt.x_col as string,
+                      y_col: evt.y_col as string,
+                    }
+                  : m
+              )
+            );
+          } else if (evtType === "error") {
+            setMessages((prev) =>
+              prev.map((m, i) =>
+                i === assistantIdx
+                  ? { ...m, error: evt.message as string }
+                  : m
+              )
+            );
+          }
+        }
+      }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", question, error: String(err) },
-      ]);
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === assistantIdx
+            ? { ...m, error: String(err) }
+            : m
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -451,16 +585,16 @@ function App() {
                         {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && (
                           <div className="chart-toggle-bar">
                             <button
-                              className={`chart-tab ${!tableView.has(i) ? "chart-tab-active" : ""}`}
-                              onClick={() => setTableView((s) => { const n = new Set(s); n.delete(i); return n; })}
-                            >📊 Chart</button>
-                            <button
-                              className={`chart-tab ${tableView.has(i) ? "chart-tab-active" : ""}`}
-                              onClick={() => setTableView((s) => new Set(s).add(i))}
+                              className={`chart-tab ${!chartView.has(i) ? "chart-tab-active" : ""}`}
+                              onClick={() => setChartView((s) => { const n = new Set(s); n.delete(i); return n; })}
                             >📋 Table</button>
+                            <button
+                              className={`chart-tab ${chartView.has(i) ? "chart-tab-active" : ""}`}
+                              onClick={() => setChartView((s) => new Set(s).add(i))}
+                            >📊 Chart</button>
                           </div>
                         )}
-                        {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && !tableView.has(i) ? (
+                        {msg.chart_type && msg.chart_type !== "none" && msg.x_col && msg.y_col && chartView.has(i) ? (
                           <div className="chart-container">
                             <ChartPanel
                               chartType={msg.chart_type as "bar" | "line" | "pie"}
@@ -520,15 +654,22 @@ function App() {
           )
         )}
 
-        {loading && (
-          <div className="msg assistant-msg">
-            <div className="bubble assistant-bubble loading-bubble">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
+        {loading && messages.length > 0 && (() => {
+          const lastMsg = messages[messages.length - 1];
+          // Only show loading dots if the last message is a user message (no assistant placeholder yet)
+          // or if it's a data_query assistant placeholder with no data yet
+          const isStreamingAdmin = lastMsg.role === "assistant" && lastMsg.mode === "admin_assist" && lastMsg.answer;
+          if (isStreamingAdmin) return null;
+          return (
+            <div className="msg assistant-msg">
+              <div className="bubble assistant-bubble loading-bubble">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div ref={bottomRef} />
       </main>
 

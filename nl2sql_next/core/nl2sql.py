@@ -425,6 +425,147 @@ def resume_after_approval(pending: Dict[str, Any], approved: bool
     return resp.output_text or "(Tool loop reached maximum iterations)", usage_totals
 
 
+# ── Streaming admin assistant ───────────────────────────
+
+def _admin_llm_stream(cfg: Dict[str, Any], input_items: List[Any]):
+    """Single streaming Responses API call — returns the raw stream iterator."""
+    client = _get_client()
+    kwargs: Dict[str, Any] = {
+        "model": cfg["deployment"],
+        "instructions": ADMIN_TOOL_PROMPT,
+        "input": input_items,
+        "tools": TOOLS_ALL,
+        "max_output_tokens": 2048,
+        "stream": True,
+    }
+    if cfg["reasoning"]:
+        kwargs["reasoning"] = {"effort": cfg["reasoning"]}
+    else:
+        kwargs["temperature"] = 0
+
+    return client.responses.create(**kwargs)
+
+
+def answer_admin_stream(question: str, schema_context: Optional[str] = None,
+                        history: Optional[List[Dict[str, str]]] = None,
+                        model_key: str = DEFAULT_MODEL):
+    """Streaming admin assistant — yields SSE-friendly dicts.
+
+    Yields dicts with "type" key:
+      {"type": "delta", "text": "..."}        — text token chunk
+      {"type": "tool_start", "name": "..."}   — tool call beginning
+      {"type": "tool_done", "name": "...", "result_preview": "..."}
+      {"type": "approval", "pending": {...}}  — needs user approval
+      {"type": "done", "usage": {...}}        — stream finished
+      {"type": "error", "message": "..."}     — error
+    """
+    cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
+    usage_totals: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+    if schema_context is None:
+        schema_context = get_schema_context()
+
+    input_items = _build_admin_input(question, schema_context, history)
+
+    for _round in range(MAX_TOOL_ROUNDS):
+        stream = _admin_llm_stream(cfg, input_items)
+
+        text_chunks: list[str] = []
+        tool_calls_acc: list[Any] = []  # completed function_call items
+        current_tool_name: Optional[str] = None
+        completed_response = None
+
+        for event in stream:
+            etype = event.type
+
+            # Text token
+            if etype == "response.output_text.delta":
+                delta = getattr(event, "delta", "")
+                if delta:
+                    text_chunks.append(delta)
+                    yield {"type": "delta", "text": delta}
+
+            # Tool call starting
+            elif etype == "response.output_item.added":
+                item = getattr(event, "item", None)
+                if item and getattr(item, "type", None) == "function_call":
+                    current_tool_name = getattr(item, "name", "unknown")
+                    yield {"type": "tool_start", "name": current_tool_name}
+
+            # Tool call completed
+            elif etype == "response.output_item.done":
+                item = getattr(event, "item", None)
+                if item and getattr(item, "type", None) == "function_call":
+                    tool_calls_acc.append(item)
+                    current_tool_name = None
+
+            # Full response done — extract usage
+            elif etype == "response.completed":
+                resp_obj = getattr(event, "response", None)
+                if resp_obj and resp_obj.usage:
+                    usage_totals["input_tokens"] += getattr(resp_obj.usage, "input_tokens", 0)
+                    usage_totals["output_tokens"] += getattr(resp_obj.usage, "output_tokens", 0)
+                    usage_totals["total_tokens"] += getattr(resp_obj.usage, "total_tokens", 0)
+                completed_response = resp_obj
+
+        # If no tool calls, we're done
+        if not tool_calls_acc:
+            yield {"type": "done", "usage": usage_totals}
+            return
+
+        # Process tool calls — separate safe vs approval-requiring
+        safe_calls = [tc for tc in tool_calls_acc if not needs_approval(tc.name)]
+        approval_calls = [tc for tc in tool_calls_acc if needs_approval(tc.name)]
+
+        if approval_calls:
+            tc = approval_calls[0]
+
+            # Add all output items from completed response to input
+            if completed_response:
+                for item in completed_response.output:
+                    input_items.append(item)
+
+            # Execute safe calls
+            for sc in safe_calls:
+                tool_result = execute_tool(sc.name, sc.arguments)
+                yield {"type": "tool_done", "name": sc.name,
+                       "result_preview": tool_result[:200]}
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": sc.call_id,
+                    "output": tool_result,
+                })
+
+            pending = {
+                "tool_name": tc.name,
+                "tool_arguments": tc.arguments,
+                "tool_call_id": tc.call_id,
+                "explanation": "",
+                "input_items": input_items,
+                "model_key": model_key,
+            }
+            yield {"type": "approval", "pending": pending}
+            yield {"type": "done", "usage": usage_totals}
+            return
+
+        # All safe — execute and loop
+        for tc in tool_calls_acc:
+            tool_result = execute_tool(tc.name, tc.arguments)
+            yield {"type": "tool_done", "name": tc.name,
+                   "result_preview": tool_result[:200]}
+            input_items.append(tc)
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": tc.call_id,
+                "output": tool_result,
+            })
+
+    # Exhausted rounds
+    yield {"type": "done", "usage": usage_totals}
+
+    return resp.output_text or "(Tool loop reached maximum iterations)", usage_totals
+
+
 # ── SQL execution ───────────────────────────────────────
 
 def execute_sql(sql: str) -> Dict[str, Any]:

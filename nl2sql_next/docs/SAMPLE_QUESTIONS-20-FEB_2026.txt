@@ -1,0 +1,53 @@
+Here are sample business questions that *require querying base tables* and doing joins across your star schema (dims/facts/ref). I’ll reference the actual objects in RetailDW.
+
+Customer + Orders (dim.DimCustomer ↔ fact.FactOrders ↔ dim.DimDate)
+
+1. Which customers generated the highest profit in 2024, and what are their order counts?
+2. What is the average order value by MembershipTier and Region over the last 12 months?
+3. How does profit margin vary by AgeGroup and Gender by quarter?
+4. Who are the top 50 customers by revenue whose last order date was more than 180 days ago (churn risk)?
+5. What is the customer acquisition trend: monthly orders from customers whose SignupDate falls in that same month?
+
+Product performance (dim.DimProduct ↔ fact.FactOrders ↔ dim.DimDate)
+
+6. What are the top 20 products by profit, and what is their units sold and avg discount per unit?
+7. Which brands have the highest return rate (requires join to returns)?
+8. For each category/subcategory, what is the trend of revenue and profit by month?
+
+Returns analysis (fact.FactReturns ↔ ref.RefReturnReason + dims)
+
+9. What are the most common return reasons by Category and Brand?
+10. Which stores/regions have the highest return rate and refund amount per unit?
+11. Are discounted items returned more often than non-discounted ones? (join fact.FactReturns to fact.FactOrders on OrderId + LineNumber)
+12. What is the time-to-return distribution (days between order date and return date) by reason?
+
+Promotions effectiveness (dim.DimPromotion ↔ fact.FactOrders ↔ dim.DimDate)
+
+13. Which promotions drove the most incremental profit vs. non-promoted orders?
+14. What is the average discount and profit margin by PromotionType over time?
+15. Do promotions increase units per order or just reduce margin?
+
+Store & shipping (dim.DimStore / dim.DimShippingMethod ↔ fact.FactOrders)
+
+16. Revenue/profit by StoreType and Region, including online vs. physical comparison.
+17. Which shipping methods have the highest average shipping cost and how does that impact profit?
+18. What is the average ship lag (ShipDate - OrderDate) by CarrierName and month?
+
+Payment method insights (dim.DimPaymentMethod ↔ fact.FactOrders)
+
+19. What is the mix of payment providers by revenue, and which has the highest avg order value?
+20. Do certain payment methods correlate with higher return rates (join orders + returns + payment method)?
+
+Inventory + sales (fact.FactInventory ↔ dim.DimProduct ↔ dim.DimStore ↔ dim.DimDate, plus optionally FactOrders)
+
+21. Which products are most frequently below ReorderPoint by store and month?
+22. For each store, what is the relationship between inventory on hand and units sold in the following week/month?
+23. Identify potential overstock: high QuantityOnHand with low trailing 90-day sales.
+
+Web traffic to conversion (fact.FactWebTraffic ↔ dim.DimDate ↔ dim.DimCustomer, and optionally orders)
+
+24. Conversion rate by TrafficSource and DeviceType over time.
+25. Do customers with longer SessionDurationSec have higher order frequency? (traffic ↔ customer ↔ orders)
+26. What percent of sessions with AddedToCart > 0 result in an order within 7 days? (needs logic and joins)
+
+If you tell me which area you care about (returns, promos, inventory, web traffic, etc.), I can turn 3–5 of these into exact single-SELECT T‑SQL queries using your two-part names.
