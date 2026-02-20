@@ -160,9 +160,25 @@ nl2sql_next/
 | `dim` | DimDate, DimCustomer, DimProduct, DimStore, DimPromotion, DimShippingMethod, DimPaymentMethod | Dimension tables |
 | `ref` | RefReturnReason | Reference lookup |
 | `fact` | FactOrders, FactReturns, FactCustomerReview, FactWebTraffic, FactInventory | Fact tables |
-| `dbo` | vw_MonthlySales, vw_ProductPerformance, vw_CustomerLifetimeValue, vw_InventoryStatus | Analytical views |
+| `dbo` | vw_OrderSummary, vw_MonthlySales, vw_ProductPerformance, vw_CustomerLifetimeValue | Analytical views |
 
-**Data volumes**: ~21K total rows (1,800 orders / 3,613 order lines, 3,000 customers, 500 products, 12,000 inventory records, etc.)
+**Data volumes**: ~50K total rows — see [docs/SCHEMA_REFERENCE.md](docs/SCHEMA_REFERENCE.md) for full breakdown.
+
+| Table | Rows |
+|-------|------|
+| FactOrders | 20,043 |
+| FactInventory | 12,000 |
+| FactWebTraffic | 8,000 |
+| FactCustomerReview | 5,000 |
+| DimCustomer | 3,000 |
+| FactReturns | 2,036 |
+| DimDate | 1,461 |
+| DimProduct | 500 |
+| DimPromotion | 30 |
+| DimStore | 25 |
+| DimPaymentMethod | 8 |
+| RefReturnReason | 8 |
+| DimShippingMethod | 5 |
 
 **Relationships**: 20 foreign key constraints linking all fact tables to their dimensions.
 
@@ -605,7 +621,7 @@ flowchart LR
 | Azure OpenAI config (.env) | ✅ Done — gpt-4.1, Responses API |
 | Azure SQL Server + DB creation | ✅ Done — Entra-only, Gen5 2 vCores |
 | Star schema DDL (Retail) | ✅ Done — 13 tables, 4 views, 20 FKs |
-| Seed data (~21K rows) | ✅ Done — via MSSQL MCP tools |
+| Seed data (~50K rows) | ✅ Done — via MSSQL MCP tools |
 | Schema extractor + cache | ✅ Done — core/schema.py |
 | NL2SQL chain (Responses API) | ✅ Done — core/nl2sql.py |
 | Intent routing (data_query / admin_assist) | ✅ Done — core/router.py |

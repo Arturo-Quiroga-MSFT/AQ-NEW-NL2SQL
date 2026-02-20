@@ -21,13 +21,50 @@ function exportChartAsPng(container: HTMLElement, filename = "chart.png") {
     .catch((err) => console.error("Chart export failed:", err));
 }
 
-/** Lightweight markdown→HTML for admin answers (headers, bold, bullets, code blocks). */
+/** Lightweight markdown→HTML for admin answers (headers, bold, bullets, code blocks, tables). */
 function simpleMarkdown(md: string): string {
-  return md
+  // First pass: extract code blocks to protect them from further processing
+  const codeBlocks: string[] = [];
+  let processed = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
+    codeBlocks.push(`<pre class="sql-block">${code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`);
+    return `%%CODEBLOCK_${codeBlocks.length - 1}%%`;
+  });
+
+  // Second pass: extract and convert markdown tables
+  const tableBlocks: string[] = [];
+  processed = processed.replace(
+    /(^[ \t]*\|.+\|[ \t]*\n)([ \t]*\|[ \t:]*-[-| \t:]*\|[ \t]*\n)((?:[ \t]*\|.+\|[ \t]*\n?)*)/gm,
+    (_match, headerLine: string, _separatorLine: string, bodyLines: string) => {
+      const parseRow = (line: string) =>
+        line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+      const headers = parseRow(headerLine);
+      const rows = bodyLines
+        .trim()
+        .split("\n")
+        .filter((l: string) => l.trim())
+        .map((l: string) => parseRow(l));
+
+      let html = '<div class="table-wrap"><table><thead><tr>';
+      headers.forEach((h) => { html += `<th>${h}</th>`; });
+      html += "</tr></thead><tbody>";
+      rows.forEach((row) => {
+        html += "<tr>";
+        row.forEach((cell) => { html += `<td>${cell}</td>`; });
+        html += "</tr>";
+      });
+      html += "</tbody></table></div>";
+
+      tableBlocks.push(html);
+      return `\n%%TABLEBLOCK_${tableBlocks.length - 1}%%\n`;
+    }
+  );
+
+  // Third pass: normal inline markdown
+  processed = processed
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="sql-block">$2</pre>')
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/^### (.+)$/gm, "<h4>$1</h4>")
     .replace(/^## (.+)$/gm, "<h3>$1</h3>")
@@ -37,6 +74,16 @@ function simpleMarkdown(md: string): string {
     .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
     .replace(/\n{2,}/g, "<br/><br/>")
     .replace(/\n/g, "<br/>");
+
+  // Restore code blocks and table blocks
+  codeBlocks.forEach((html, i) => {
+    processed = processed.replace(`%%CODEBLOCK_${i}%%`, html);
+  });
+  tableBlocks.forEach((html, i) => {
+    processed = processed.replace(`%%TABLEBLOCK_${i}%%`, html);
+  });
+
+  return processed;
 }
 
 interface Message {
@@ -289,25 +336,9 @@ function App() {
               )
             );
           } else if (evtType === "tool_start") {
-            // Show tool activity indicator in the answer
-            const toolName = evt.name as string;
-            setMessages((prev) =>
-              prev.map((m, i) =>
-                i === assistantIdx
-                  ? { ...m, answer: (m.answer || "") + `\n\n*Calling ${toolName}…*\n\n` }
-                  : m
-              )
-            );
+            // Tool activity — silently ignored (no visible indicator)
           } else if (evtType === "tool_done") {
-            // Tool completed — strip the "Calling..." indicator and continue
-            setMessages((prev) =>
-              prev.map((m, i) => {
-                if (i !== assistantIdx) return m;
-                // Remove the trailing "Calling tool..." line for cleaner output
-                const cleaned = (m.answer || "").replace(/\n\n\*Calling \w+…\*\n\n$/, "\n\n");
-                return { ...m, answer: cleaned };
-              })
-            );
+            // Tool completed — no-op
           } else if (evtType === "approval") {
             setMessages((prev) =>
               prev.map((m, i) =>
@@ -553,7 +584,7 @@ function App() {
           <div className="welcome-schema">
             <strong>RetailDW</strong> — E-Commerce star schema &middot;
             7 dimensions &middot; 5 fact tables &middot; 4 analytical views &middot;
-            ~21K rows &middot; 20 foreign keys &middot;
+            ~50K rows &middot; 20 foreign keys &middot;
             Orders, Returns, Reviews, Web Traffic, Inventory
           </div>
 
