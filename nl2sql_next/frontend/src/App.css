@@ -26,18 +26,19 @@
 }
 .header h1 { font-size: 1.2rem; color: #e94560; }
 .subtitle { color: #888; font-size: 0.8rem; flex: 1; }
-.header-caps {
-  display: flex;
-  gap: 6px;
-  padding: 0 20px 8px;
-  flex-wrap: wrap;
+.header-desc {
+  padding: 0 20px 10px;
+  font-size: 0.78rem;
+  color: #aaa;
+  line-height: 1.6;
 }
-.cap-pill {
+.mode-label {
   font-size: 0.65rem;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 4px;
   letter-spacing: 0.3px;
+  vertical-align: middle;
 }
 .data-pill  { background: #e9456022; color: #e94560; border: 1px solid #e9456044; }
 .admin-pill { background: #4ecca322; color: #4ecca3; border: 1px solid #4ecca344; }
@@ -214,6 +215,11 @@ tr:nth-child(even) { background: #1a1a3e; }
   background: #4ecca322;
   color: #4ecca3;
   border: 1px solid #4ecca344;
+}
+.query-badge {
+  background: #e9456022;
+  color: #e94560;
+  border: 1px solid #e9456044;
 }
 .admin-answer { line-height: 1.6; }
 .admin-answer h2, .admin-answer h3, .admin-answer h4 {

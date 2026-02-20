@@ -147,13 +147,10 @@ function App() {
             </button>
           )}
         </div>
-        <div className="header-caps">
-          <span className="cap-pill data-pill">Data Queries</span>
-          <span className="cap-pill admin-pill">Schema Explorer</span>
-          <span className="cap-pill admin-pill">DB Assistant</span>
-          <span className="cap-pill feat-pill">Multi-turn</span>
-          <span className="cap-pill feat-pill">Error Correction</span>
-          <span className="cap-pill feat-pill">Few-shot</span>
+        <div className="header-desc">
+          <span className="mode-label data-pill">Data Query</span> Ask questions in plain English and get SQL + results from the RetailDW database.
+          &nbsp;&nbsp;
+          <span className="mode-label admin-pill">DB Assistant</span> Ask about schema, relationships, indexes, design, or best practices — answered directly, no SQL needed.
         </div>
       </header>
 
@@ -220,6 +217,7 @@ function App() {
                   </div>
                 ) : (
                   <>
+                    <span className="mode-badge query-badge">Data Query</span>
                     <button
                       className="sql-toggle"
                       onClick={() => setShowSql(showSql === i ? null : i)}
