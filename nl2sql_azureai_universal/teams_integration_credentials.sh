@@ -1,3 +1,0 @@
-client_secret_value=<YOUR_CLIENT_SECRET_HERE>
-app_or_client_id=<YOUR_BOT_ID_HERE>
-app_tenant_id=<YOUR_TENANT_ID_HERE>

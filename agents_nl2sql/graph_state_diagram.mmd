@@ -1,8 +1,0 @@
-stateDiagram-v2
-    [*] --> schema_ctx
-    schema_ctx --> intent: if not explain_only
-    schema_ctx --> sanitize: if explain_only
-    intent --> sql_gen
-    sql_gen --> sanitize
-    sanitize --> execute
-    execute --> [*]
