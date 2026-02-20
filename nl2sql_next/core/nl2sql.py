@@ -357,9 +357,11 @@ def answer_admin(question: str, schema_context: Optional[str] = None,
             return "", usage_totals, pending
 
         # All tool calls are safe — execute them
+        # Append ALL output items (including reasoning) for conversation continuity
+        for item in resp.output:
+            input_items.append(item)
         for tc in tool_calls:
             tool_result = execute_tool(tc.name, tc.arguments)
-            input_items.append(tc)
             input_items.append({
                 "type": "function_call_output",
                 "call_id": tc.call_id,
@@ -404,10 +406,12 @@ def resume_after_approval(pending: Dict[str, Any], approved: bool
             return resp.output_text or "", usage_totals
 
         # Execute any subsequent tool calls (should be read-only at this point)
+        # Append ALL output items (including reasoning) for conversation continuity
+        for item in resp.output:
+            input_items.append(item)
         for tc in tool_calls:
             if needs_approval(tc.name):
                 # Nested approval not supported — reject
-                input_items.append(tc)
                 input_items.append({
                     "type": "function_call_output",
                     "call_id": tc.call_id,
@@ -415,7 +419,6 @@ def resume_after_approval(pending: Dict[str, Any], approved: bool
                 })
             else:
                 tool_result = execute_tool(tc.name, tc.arguments)
-                input_items.append(tc)
                 input_items.append({
                     "type": "function_call_output",
                     "call_id": tc.call_id,
@@ -549,11 +552,14 @@ def answer_admin_stream(question: str, schema_context: Optional[str] = None,
             return
 
         # All safe — execute and loop
+        # Append ALL output items (including reasoning) for conversation continuity
+        if completed_response:
+            for item in completed_response.output:
+                input_items.append(item)
         for tc in tool_calls_acc:
             tool_result = execute_tool(tc.name, tc.arguments)
             yield {"type": "tool_done", "name": tc.name,
                    "result_preview": tool_result[:200]}
-            input_items.append(tc)
             input_items.append({
                 "type": "function_call_output",
                 "call_id": tc.call_id,
