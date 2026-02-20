@@ -289,6 +289,106 @@ tr:nth-child(even) { background: #1a1a3e; }
   letter-spacing: 0.2px;
 }
 
+/* Approval card */
+.approval-card {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid #f5a62366;
+  background: #f5a62310;
+}
+.approval-card.approval-approved {
+  border-color: #4ecca366;
+  background: #4ecca310;
+}
+.approval-card.approval-rejected {
+  border-color: #e9456066;
+  background: #e9456010;
+}
+.approval-card.approval-resolving {
+  border-color: #79c0ff66;
+  background: #79c0ff10;
+}
+.approval-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.approval-icon { font-size: 1.1rem; }
+.approval-title { color: #f5a623; }
+.approval-approved .approval-title { color: #4ecca3; }
+.approval-rejected .approval-title { color: #e94560; }
+.approval-resolving .approval-title { color: #79c0ff; }
+.approval-tool {
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 8px;
+}
+.approval-tool code {
+  background: #0d1117;
+  color: #79c0ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.approval-sql {
+  background: #0d1117;
+  color: #f5a623;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+  border: 1px solid #f5a62333;
+}
+.approval-approved .approval-sql { color: #4ecca3; border-color: #4ecca333; }
+.approval-rejected .approval-sql { color: #e94560; border-color: #e9456033; }
+.approval-explanation {
+  font-size: 0.85rem;
+  color: #ccc;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.approval-actions {
+  display: flex;
+  gap: 10px;
+}
+.approval-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.approval-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.approve-btn {
+  background: #4ecca3;
+  color: #1a1a2e;
+}
+.approve-btn:hover:not(:disabled) { opacity: 0.85; }
+.reject-btn {
+  background: #e94560;
+  color: #fff;
+}
+.reject-btn:hover:not(:disabled) { opacity: 0.85; }
+.approval-result {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #0f3460;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #e0e0e0;
+}
+
 /* Chart toggle & container */
 .chart-toggle-bar {
   display: flex;

@@ -38,7 +38,7 @@ from .schema import get_schema_context
 from .db import get_connection
 from .few_shots import format_few_shots
 from .router import classify
-from .tools import TOOLS_READ_ONLY, execute_tool
+from .tools import TOOLS_ALL, execute_tool, needs_approval
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(_ROOT, ".env"))
@@ -222,6 +222,7 @@ You have tools to:
 - list_tables: see all tables and views with row counts
 - describe_table: inspect column definitions, keys, and foreign keys
 - run_read_query: execute read-only SELECT queries for live data
+- run_write_query: execute INSERT/UPDATE/DELETE (requires user approval)
 
 Guidelines:
 - Use your tools to inspect the live database when the user asks about
@@ -231,30 +232,24 @@ Guidelines:
 - Use the actual table/column names from the tool results.
 - When suggesting indexes or optimizations, be specific.
 - You may call multiple tools in sequence if needed.
-- Only use run_read_query for SELECT statements — never write queries.
+
+CRITICAL RULE FOR WRITE OPERATIONS:
+- When the user asks to modify, insert, update, or delete data, you MUST
+  ALWAYS call the run_write_query tool immediately with the SQL statement.
+- NEVER describe the SQL and ask the user to confirm in text.
+- NEVER say "would you like to proceed?" or "shall I execute this?".
+- The system has a built-in approval UI that will show the SQL to the user
+  and let them approve or reject before execution. Your job is to call the
+  tool — the safety confirmation is handled by the system, not by you.
+- This applies to ALL write operations: INSERT, UPDATE, and DELETE.
 """
 
 MAX_TOOL_ROUNDS = 6  # safety cap on tool-use loop iterations
 
 
-def answer_admin(question: str, schema_context: Optional[str] = None,
-                 history: Optional[List[Dict[str, str]]] = None,
-                 model_key: str = DEFAULT_MODEL) -> Tuple[str, Dict[str, int]]:
-    """Answer a schema/admin question using live database tools.
-
-    Uses the Responses API tool-use loop: the LLM can call tools (list_tables,
-    describe_table, run_read_query), receive results, and compose a final answer.
-
-    Returns (answer_text, usage_dict).
-    """
-    client = _get_client()
-    cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
-    usage_totals: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-
-    if schema_context is None:
-        schema_context = get_schema_context()
-
-    # Build initial input
+def _build_admin_input(question: str, schema_context: str,
+                       history: Optional[List[Dict[str, str]]] = None) -> List[Any]:
+    """Build the initial input items for the admin tool-use loop."""
     parts: list[str] = [f"DATABASE SCHEMA:\n{schema_context}"]
     if history:
         parts.append("\nCONVERSATION HISTORY:")
@@ -265,51 +260,168 @@ def answer_admin(question: str, schema_context: Optional[str] = None,
             elif h.get("answer"):
                 parts.append(f"Answer: {h['answer'][:200]}")
     parts.append(f"\nQUESTION: {question}")
+    return [{"role": "user", "content": "\n".join(parts)}]
 
-    # Responses API expects `input` as a list of input items
-    input_items: List[Any] = [{"role": "user", "content": "\n".join(parts)}]
+
+def _admin_llm_call(cfg: Dict[str, Any], input_items: List[Any],
+                    usage_totals: Dict[str, int]) -> Any:
+    """Single Responses API call for the admin tool-use loop."""
+    client = _get_client()
+    kwargs: Dict[str, Any] = {
+        "model": cfg["deployment"],
+        "instructions": ADMIN_TOOL_PROMPT,
+        "input": input_items,
+        "tools": TOOLS_ALL,
+        "max_output_tokens": 2048,
+    }
+    if cfg["reasoning"]:
+        kwargs["reasoning"] = {"effort": cfg["reasoning"]}
+    else:
+        kwargs["temperature"] = 0
+
+    resp = client.responses.create(**kwargs)
+
+    if resp.usage:
+        usage_totals["input_tokens"] += getattr(resp.usage, "input_tokens", 0)
+        usage_totals["output_tokens"] += getattr(resp.usage, "output_tokens", 0)
+        usage_totals["total_tokens"] += getattr(resp.usage, "total_tokens", 0)
+
+    return resp
+
+
+def answer_admin(question: str, schema_context: Optional[str] = None,
+                 history: Optional[List[Dict[str, str]]] = None,
+                 model_key: str = DEFAULT_MODEL
+                 ) -> Tuple[str, Dict[str, int], Optional[Dict[str, Any]]]:
+    """Answer a schema/admin question using live database tools.
+
+    Uses the Responses API tool-use loop.  When the LLM calls a tool that
+    requires approval (e.g. run_write_query), the loop pauses and returns
+    a pending-approval dict so the caller can present it to the user.
+
+    Returns (answer_text, usage_dict, pending_approval_or_None).
+    """
+    cfg = MODEL_CONFIG.get(model_key, MODEL_CONFIG[DEFAULT_MODEL])
+    usage_totals: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+
+    if schema_context is None:
+        schema_context = get_schema_context()
+
+    input_items = _build_admin_input(question, schema_context, history)
 
     for _round in range(MAX_TOOL_ROUNDS):
-        kwargs: Dict[str, Any] = {
-            "model": cfg["deployment"],
-            "instructions": ADMIN_TOOL_PROMPT,
-            "input": input_items,
-            "tools": TOOLS_READ_ONLY,
-            "max_output_tokens": 2048,
-        }
-        if cfg["reasoning"]:
-            kwargs["reasoning"] = {"effort": cfg["reasoning"]}
-        else:
-            kwargs["temperature"] = 0
+        resp = _admin_llm_call(cfg, input_items, usage_totals)
 
-        resp = client.responses.create(**kwargs)
-
-        # Accumulate usage
-        if resp.usage:
-            usage_totals["input_tokens"] += getattr(resp.usage, "input_tokens", 0)
-            usage_totals["output_tokens"] += getattr(resp.usage, "output_tokens", 0)
-            usage_totals["total_tokens"] += getattr(resp.usage, "total_tokens", 0)
-
-        # Check for tool calls in the response output
         tool_calls = [item for item in resp.output
                       if getattr(item, "type", None) == "function_call"]
 
         if not tool_calls:
-            # No tool calls → LLM produced a text response, we're done
-            return resp.output_text or "", usage_totals
+            return resp.output_text or "", usage_totals, None
 
-        # Execute each tool call and feed results back
+        # Separate safe vs approval-requiring tool calls
+        safe_calls = [tc for tc in tool_calls if not needs_approval(tc.name)]
+        approval_calls = [tc for tc in tool_calls if needs_approval(tc.name)]
+
+        if approval_calls:
+            tc = approval_calls[0]  # handle one approval at a time
+
+            # Collect any explanation text the LLM emitted alongside the call
+            explanation_parts = [
+                getattr(item, "text", "")
+                for item in resp.output
+                if getattr(item, "type", None) == "output_text"
+                   and getattr(item, "text", "")
+            ]
+
+            # Append all output items to input_items for conversation continuity
+            for item in resp.output:
+                input_items.append(item)
+
+            # Execute safe tool calls so their outputs are present
+            for sc in safe_calls:
+                tool_result = execute_tool(sc.name, sc.arguments)
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": sc.call_id,
+                    "output": tool_result,
+                })
+
+            pending = {
+                "tool_name": tc.name,
+                "tool_arguments": tc.arguments,
+                "tool_call_id": tc.call_id,
+                "explanation": " ".join(explanation_parts),
+                "input_items": input_items,
+                "model_key": model_key,
+            }
+            return "", usage_totals, pending
+
+        # All tool calls are safe — execute them
         for tc in tool_calls:
             tool_result = execute_tool(tc.name, tc.arguments)
-            input_items.append(tc)  # the function_call item
+            input_items.append(tc)
             input_items.append({
                 "type": "function_call_output",
                 "call_id": tc.call_id,
                 "output": tool_result,
             })
-        # Loop — LLM will see tool results on next iteration
 
-    # Safety: exceeded max rounds — return whatever text we have
+    return resp.output_text or "(Tool loop reached maximum iterations)", usage_totals, None
+
+
+def resume_after_approval(pending: Dict[str, Any], approved: bool
+                          ) -> Tuple[str, Dict[str, int]]:
+    """Resume the admin tool-use loop after a user approval decision.
+
+    If approved, executes the tool and feeds the result to the LLM.
+    If rejected, tells the LLM the user declined and gets a response.
+
+    Returns (answer_text, usage_dict).
+    """
+    cfg = MODEL_CONFIG.get(pending["model_key"], MODEL_CONFIG[DEFAULT_MODEL])
+    usage_totals: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    input_items: List[Any] = pending["input_items"]
+
+    if approved:
+        tool_result = execute_tool(pending["tool_name"], pending["tool_arguments"])
+    else:
+        tool_result = json.dumps({"status": "rejected", "message": "User declined this operation."})
+
+    input_items.append({
+        "type": "function_call_output",
+        "call_id": pending["tool_call_id"],
+        "output": tool_result,
+    })
+
+    # Continue the tool-use loop
+    for _round in range(MAX_TOOL_ROUNDS):
+        resp = _admin_llm_call(cfg, input_items, usage_totals)
+
+        tool_calls = [item for item in resp.output
+                      if getattr(item, "type", None) == "function_call"]
+
+        if not tool_calls:
+            return resp.output_text or "", usage_totals
+
+        # Execute any subsequent tool calls (should be read-only at this point)
+        for tc in tool_calls:
+            if needs_approval(tc.name):
+                # Nested approval not supported — reject
+                input_items.append(tc)
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": tc.call_id,
+                    "output": json.dumps({"error": "Only one write operation per request."}),
+                })
+            else:
+                tool_result = execute_tool(tc.name, tc.arguments)
+                input_items.append(tc)
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": tc.call_id,
+                    "output": tool_result,
+                })
+
     return resp.output_text or "(Tool loop reached maximum iterations)", usage_totals
 
 
@@ -449,16 +561,20 @@ def ask(question: str, model_key: str = DEFAULT_MODEL) -> Dict[str, Any]:
         "question": question, "mode": mode, "model": model_key, "sql": "",
         "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
         "chart_type": "none", "x_col": "", "y_col": "",
+        "approval": None,
     }
 
     try:
         schema_ctx = get_schema_context()
 
         if mode == "admin_assist":
-            answer_text, usage = answer_admin(question, schema_ctx,
-                                             model_key=model_key)
+            answer_text, usage, pending = answer_admin(question, schema_ctx,
+                                                      model_key=model_key)
             _add_usage(tokens, usage)
-            result["answer"] = answer_text
+            if pending:
+                result["approval"] = pending
+            else:
+                result["answer"] = answer_text
             result.update(_make_stats(t0, tokens))
             return result
 
@@ -551,21 +667,25 @@ class Conversation:
             "question": question, "mode": mode, "model": mk, "sql": "",
             "columns": [], "rows": [], "answer": "", "error": None, "retries": 0,
             "chart_type": "none", "x_col": "", "y_col": "",
+            "approval": None,
         }
 
         try:
             schema_ctx = get_schema_context()
 
             if mode == "admin_assist":
-                answer_text, usage = answer_admin(question, schema_ctx,
-                                                history=self._history,
-                                                model_key=mk)
+                answer_text, usage, pending = answer_admin(question, schema_ctx,
+                                                          history=self._history,
+                                                          model_key=mk)
                 _add_usage(tokens, usage)
-                result["answer"] = answer_text
-                self._history.append({"question": question,
-                                      "answer": result["answer"][:300]})
-                if len(self._history) > self._max_history:
-                    self._history = self._history[-self._max_history:]
+                if pending:
+                    result["approval"] = pending
+                else:
+                    result["answer"] = answer_text
+                    self._history.append({"question": question,
+                                          "answer": result["answer"][:300]})
+                    if len(self._history) > self._max_history:
+                        self._history = self._history[-self._max_history:]
                 result.update(_make_stats(t0, tokens))
                 return result
 

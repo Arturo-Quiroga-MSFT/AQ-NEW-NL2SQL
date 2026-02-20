@@ -15,6 +15,23 @@ from typing import Any, Dict, List
 
 from .db import get_connection
 
+# ── Tool security tiers ─────────────────────────────────
+# T0 = read-only (no approval), T1 = data write (approval required)
+# T2 = schema DDL (approval required, Phase 4)
+
+TOOL_TIERS: Dict[str, int] = {
+    "list_tables": 0,
+    "describe_table": 0,
+    "run_read_query": 0,
+    "run_write_query": 1,
+}
+
+
+def needs_approval(tool_name: str) -> bool:
+    """Return True if a tool requires user approval before execution."""
+    return TOOL_TIERS.get(tool_name, 2) >= 1
+
+
 # ── Tool definitions (OpenAI function-calling schema) ───
 
 TOOLS_READ_ONLY: List[Dict[str, Any]] = [
@@ -61,6 +78,30 @@ TOOLS_READ_ONLY: List[Dict[str, Any]] = [
                 "sql": {
                     "type": "string",
                     "description": "A SELECT query to execute.",
+                },
+            },
+            "required": ["sql"],
+        },
+    },
+]
+
+
+# All tools available to the admin assistant (read + write)
+TOOLS_ALL: List[Dict[str, Any]] = TOOLS_READ_ONLY + [
+    {
+        "type": "function",
+        "name": "run_write_query",
+        "description": (
+            "Execute a data-modification SQL statement (INSERT, UPDATE, DELETE) "
+            "against the database. This tool REQUIRES user approval before execution. "
+            "Only use when the user explicitly asks to modify data."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {
+                    "type": "string",
+                    "description": "An INSERT, UPDATE, or DELETE statement to execute.",
                 },
             },
             "required": ["sql"],
@@ -210,12 +251,39 @@ def tool_run_read_query(sql: str) -> str:
                       default=str)
 
 
+def _is_write_dml(sql: str) -> bool:
+    """Ensure SQL is a DML write (INSERT, UPDATE, DELETE) — no DDL."""
+    allowed = re.compile(r"^\s*(INSERT|UPDATE|DELETE)\b", re.IGNORECASE)
+    blocked = re.compile(
+        r"\b(DROP|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|xp_|sp_)\b",
+        re.IGNORECASE,
+    )
+    code_lines = [line.split("--")[0] for line in sql.splitlines()]
+    code = " ".join(code_lines)
+    return bool(allowed.match(code.strip())) and not blocked.search(code)
+
+
+def tool_run_write_query(sql: str) -> str:
+    """Execute a DML write query (INSERT/UPDATE/DELETE). Returns affected row count."""
+    if not _is_write_dml(sql):
+        return json.dumps({"error": "Only INSERT, UPDATE, or DELETE statements are allowed. No DDL."})
+
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(sql)
+        affected = cur.rowcount
+        conn.commit()
+
+    return json.dumps({"status": "ok", "rows_affected": affected})
+
+
 # ── Dispatcher ──────────────────────────────────────────
 
 _TOOL_MAP = {
     "list_tables": lambda _args: tool_list_tables(),
     "describe_table": lambda args: tool_describe_table(args["table_name"]),
     "run_read_query": lambda args: tool_run_read_query(args["sql"]),
+    "run_write_query": lambda args: tool_run_write_query(args["sql"]),
 }
 
 

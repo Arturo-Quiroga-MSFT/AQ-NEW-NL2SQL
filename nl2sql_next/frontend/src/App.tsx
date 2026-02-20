@@ -43,6 +43,13 @@ interface Message {
   chart_type?: "bar" | "line" | "pie" | "none";
   x_col?: string;
   y_col?: string;
+  // Approval fields
+  approval_id?: string | null;
+  approval_tool?: string | null;
+  approval_sql?: string | null;
+  approval_explanation?: string | null;
+  approval_status?: "pending" | "approved" | "rejected" | "resolving";
+  approval_result?: string;
 }
 
 const CHART_COLORS = ["#e94560", "#4ecca3", "#79c0ff", "#f5a623", "#bd93f9", "#ff79c6", "#50fa7b", "#ffb86c"];
@@ -106,6 +113,61 @@ function ChartPanel({ chartType, columns, rows, xCol, yCol }: {
   );
 }
 
+function ApprovalCard({ msg, index, onAction }: {
+  msg: Message;
+  index: number;
+  onAction: (index: number, action: "approve" | "reject") => void;
+}) {
+  const status = msg.approval_status || "pending";
+  const isPending = status === "pending";
+  const isResolving = status === "resolving";
+
+  return (
+    <div className={`approval-card approval-${status}`}>
+      <div className="approval-header">
+        <span className="approval-icon">{status === "approved" ? "\u2705" : status === "rejected" ? "\u274C" : "\u26A0\uFE0F"}</span>
+        <span className="approval-title">
+          {status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "Write Operation \u2014 Approval Required"}
+        </span>
+      </div>
+      {msg.approval_tool && (
+        <div className="approval-tool">Tool: <code>{msg.approval_tool}</code></div>
+      )}
+      {msg.approval_sql && (
+        <pre className="approval-sql">{msg.approval_sql}</pre>
+      )}
+      {msg.approval_explanation && (
+        <div className="approval-explanation"
+             dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.approval_explanation) }} />
+      )}
+      {(isPending || isResolving) && (
+        <div className="approval-actions">
+          <button
+            className="approval-btn approve-btn"
+            onClick={() => onAction(index, "approve")}
+            disabled={isResolving}
+          >
+            {isResolving ? "Processing\u2026" : "\u2705 Approve"}
+          </button>
+          <button
+            className="approval-btn reject-btn"
+            onClick={() => onAction(index, "reject")}
+            disabled={isResolving}
+          >
+            \u274C Reject
+          </button>
+        </div>
+      )}
+      {msg.approval_result && (
+        <div className="approval-result">
+          <div className="markdown-body"
+               dangerouslySetInnerHTML={{ __html: simpleMarkdown(msg.approval_result) }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MODEL_OPTIONS = [
   { value: "gpt-4.1", label: "GPT-4.1" },
   { value: "gpt-5.2-low", label: "GPT-5.2 (low reasoning)" },
@@ -163,6 +225,11 @@ function App() {
           chart_type: data.chart_type,
           x_col: data.x_col,
           y_col: data.y_col,
+          approval_id: data.approval_id,
+          approval_tool: data.approval_tool,
+          approval_sql: data.approval_sql,
+          approval_explanation: data.approval_explanation,
+          approval_status: data.approval_id ? "pending" : undefined,
         },
       ]);
     } catch (err) {
@@ -181,6 +248,45 @@ function App() {
     setShowSql(null);
     if (sessionId) {
       fetch(`${API_BASE}/api/session/${sessionId}`, { method: "DELETE" });
+    }
+  };
+
+  const handleApproval = async (index: number, action: "approve" | "reject") => {
+    const msg = messages[index];
+    if (!msg.approval_id) return;
+
+    // Mark as resolving
+    setMessages((prev) => prev.map((m, i) =>
+      i === index ? { ...m, approval_status: "resolving" as const } : m
+    ));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approval_id: msg.approval_id, action }),
+      });
+      const data = await res.json();
+
+      setMessages((prev) => prev.map((m, i) =>
+        i === index
+          ? {
+              ...m,
+              approval_status: action === "approve" ? "approved" as const : "rejected" as const,
+              approval_result: data.error || data.answer,
+              elapsed_ms: (m.elapsed_ms || 0) + (data.elapsed_ms || 0),
+              tokens_in: (m.tokens_in || 0) + (data.tokens_in || 0),
+              tokens_out: (m.tokens_out || 0) + (data.tokens_out || 0),
+              tokens_total: (m.tokens_total || 0) + (data.tokens_total || 0),
+            }
+          : m
+      ));
+    } catch (err) {
+      setMessages((prev) => prev.map((m, i) =>
+        i === index
+          ? { ...m, approval_status: "rejected" as const, approval_result: String(err) }
+          : m
+      ));
     }
   };
 
@@ -313,6 +419,12 @@ function App() {
               <div className={`bubble assistant-bubble ${msg.mode === "admin_assist" ? "admin-bubble" : ""}`}>
                 {msg.error ? (
                   <div className="error">{msg.error}</div>
+                ) : msg.approval_id ? (
+                  <div className="admin-answer">
+                    <span className="mode-badge admin-badge">DB Assistant</span>
+                    {msg.model && <span className="mode-badge model-badge">{msg.model}</span>}
+                    <ApprovalCard msg={msg} index={i} onAction={handleApproval} />
+                  </div>
                 ) : msg.mode === "admin_assist" ? (
                   <div className="admin-answer">
                     <span className="mode-badge admin-badge">DB Assistant</span>

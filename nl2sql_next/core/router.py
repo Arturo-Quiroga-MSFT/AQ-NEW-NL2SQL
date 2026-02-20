@@ -28,10 +28,14 @@ data_query — The user wants to retrieve, analyze, or compute something FROM th
 
 admin_assist — The user is asking ABOUT the database itself, its schema, design, or wants
   advice on database management, optimization, indexing, or general explanations.
+  ALSO use this category for any DATA MODIFICATION request: INSERT, UPDATE, DELETE,
+  adding rows, removing rows, changing values, or any write operation.
   Examples: "what tables are in the database?", "describe the DimCustomer table",
   "how are orders related to products?", "what indexes should I add?",
   "explain the star schema", "what's the partition key?", "how many columns in FactOrders?",
-  "suggest improvements to the schema", "what are best practices for this schema?"
+  "suggest improvements to the schema", "what are best practices for this schema?",
+  "delete the Cryptocurrency payment method", "add a new store", "insert a row",
+  "update customer 5's email", "remove the test product"
 
 Respond with ONLY the category name: data_query or admin_assist
 """
